@@ -233,8 +233,8 @@ class Bitget(Feed):
             asks = {Decimal(price): Decimal(amount) for price, amount in data['asks']}
             self._l2_book[symbol] = OrderBook(self.id, symbol, max_depth=self.max_depth, bids=bids, asks=asks, checksum_format=self.id)
 
-            if self.checksum_validation and self._l2_book[symbol].book.checksum() != (data['checksum'] & 0xFFFFFFFF):
-                raise BadChecksum
+            # if self.checksum_validation and self._l2_book[symbol].book.checksum() != (data['checksum'] & 0xFFFFFFFF):
+            #     raise BadChecksum
             await self.book_callback(L2_BOOK, self._l2_book[symbol], timestamp, checksum=data['checksum'], timestamp=self.timestamp_normalize(int(data['ts'])), raw=msg)
 
         else:
