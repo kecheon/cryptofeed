@@ -14,7 +14,7 @@ def nbbo_update(symbol, bid, bid_size, ask, ask_size, bid_feed, ask_feed):
     spread = 100 * abs(ask - bid) / bid
     bidQty = bid * bid_size
     askQty = ask * ask_size
-    if (spread > 0.08) & (bidQty > 100.0) & (askQty > 100.0):
+    if (spread > 0.2) & (bidQty > 100.0) & (askQty > 100.0):
         print(
             f"Pair: {symbol} Spread: {spread:.4f}% Best Bid Price: {bid:.4f} Best Bid Size: {bid_size:.6f} Best Bid Exchange: {bid_feed}\nBest Ask Price: {ask:.4f} Best Ask Size: {ask_size:.6f} Best Ask Feed: {ask_feed}\n"
         )
@@ -44,6 +44,12 @@ def main():
             "MANA-USDT",
             "ONE-USDT",
             "FTM-USDT",
+            "ETC-USDT",
+            "LINK-USDT",
+            "STORJ-USDT",
+            "AVAX-USDT",
+            "UNI-USDT",
+            "SUSHI-USDT",
         ],
         nbbo_update,
     )
