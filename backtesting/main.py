@@ -23,10 +23,20 @@ data = data.rename(
     }
 )
 
+# --- Strategy Parameters ---
+strategy_params = {
+    'adx_period': 14,
+    'threshold': 25,
+    'take_profit': 0.01,
+    'total_exit': 0.005,
+    'initial_size_pct': 0.00001,
+    'hedge_multiplier': 2.5,
+}
+
 bt = FractionalBacktest(
-    data, DMIStrategy, cash=1000000, commission=0.001, exclusive_orders=False, hedging=True
+    data, DMIStrategy, cash=10000, commission=0.0005, exclusive_orders=False, hedging=True
 )
 
-stats = bt.run()
+stats = bt.run(**strategy_params)
 print(stats)
 bt.plot()

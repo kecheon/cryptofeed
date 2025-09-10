@@ -9,7 +9,7 @@ class DMIStrategy(Strategy):
     take_profit = 0.01      # 개별 포지션 1% 익절
     total_exit = 0.003        # 헷지 상태에서 전체 수익률 2% 이상이면 청산
     initial_size_pct = 0.000001    # Initial trade size as a percentage of equity
-    hedge_multiplier = 2        # Multiplies the cash value of the opposing side
+    hedge_multiplier = 2.5       # Multiplies the cash value of the opposing side
 
     def init(self):
         df = self.data.df
