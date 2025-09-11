@@ -6,7 +6,7 @@ from backtesting.lib import FractionalBacktest
 
 
 # BTCUSD 1시간봉 예시
-data = yf.download("LINK-USD", start="2025-08-01", end="2025-09-11", interval="5m")
+data = yf.download("SOL-USD", start="2025-08-13", end="2025-09-11", interval="5m")
 
 # 멀티인덱스를 단일 레벨로 변환
 if isinstance(data.columns, pd.MultiIndex):
@@ -36,8 +36,8 @@ strategy_params = {
     'threshold': 25,
     'take_profit': 0.1,
     'total_exit': 0.05,
-    'initial_size': 10,
-    'hedge_multiplier': 2.0,
+    'initial_size': 1,
+    'hedge_multiplier': 3,
     'leverage': leverage,
 }
 

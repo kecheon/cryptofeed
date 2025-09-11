@@ -29,8 +29,12 @@ class DMIStrategy(Strategy):
         print(f"Closed trades: {len(self.closed_trades)}")
 
         # Signals
-        long_signal = self.plus_di[-1] > self.minus_di[-1] and self.adx[-1] > self.threshold
-        short_signal = self.minus_di[-1] > self.plus_di[-1] and self.adx[-1] > self.threshold
+        long_signal = self.plus_di[-1] > self.minus_di[-1] \
+            and self.adx[-1] > self.threshold \
+            and self.adx[-2] < self.adx[-1] 
+        short_signal = self.minus_di[-1] > self.plus_di[-1] \
+            and self.adx[-1] > self.threshold \
+            and self.adx[-2] < self.adx[-1] 
 
         open_trades = list(self.trades)
 
