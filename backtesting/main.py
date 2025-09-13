@@ -39,7 +39,7 @@ strategy_params = {
     'initial_size': 1,
     'hedge_multiplier': 3,
     'leverage': leverage,
-    'max_hedge_count': 3,
+    'max_hedge_count': 5,
     'debug_mode': True,
 }
 
@@ -55,4 +55,4 @@ bt = Backtest(
 
 stats = bt.run(**strategy_params)
 print(stats)
-bt.plot()
+# bt.plot()
