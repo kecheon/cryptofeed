@@ -18,6 +18,7 @@ class DMIStrategy(Strategy):
     initial_size = 1
     hedge_multiplier = 2.0
     leverage = 1.0
+    debug_mode = False
     
     # Long-term MA periods for Locked Exit Mode
     lt_ma_fast = 100
@@ -26,11 +27,16 @@ class DMIStrategy(Strategy):
     # Max number of hedges before locking
     max_hedge_count = 3
 
+    # Trailing stop for recovery mode
+    recovery_trailing_stop_pct = 0.005 # 0.5% on margin
+
     def init(self):
         # State variables
         self.hedge_count = 0
         self.locked_exit_mode = False
+        self.recovery_mode = False
         self.locked_sequence_id = 0
+        self.recovery_peak_pnl = 0
 
         # Indicators
         df = self.data.df
@@ -43,79 +49,113 @@ class DMIStrategy(Strategy):
         self.slow_ma = self.I(sma, self.data.Close, self.lt_ma_slow)
 
     def next(self):
-        # --- LOCKED EXIT MODE ---
+        if self.debug_mode:
+            print(f"--- Top of next() | Bar: {len(self.data)} ---")
+            print(f"Open trades: {len(self.trades)}")
+            print(f"Closed trades: {len(self.closed_trades)}")
+
+        # --- State Reset --- (If all positions are closed)
+        if not self.trades:
+            if self.hedge_count > 0 or self.recovery_mode or self.locked_exit_mode:
+                self.hedge_count = 0
+                self.locked_exit_mode = False
+                self.recovery_mode = False
+                self.recovery_peak_pnl = 0
+
+        # --- RECOVERY MODE (Trailing Stop) ---
+        if self.recovery_mode:
+            pnl_total = sum(t.pl for t in self.trades)
+            self.recovery_peak_pnl = max(self.recovery_peak_pnl, pnl_total)
+            
+            notional_value = sum(abs(t.size * t.entry_price) for t in self.trades)
+            margin_used = notional_value / self.leverage
+            stop_loss_amount = margin_used * self.recovery_trailing_stop_pct
+
+            if pnl_total < self.recovery_peak_pnl - stop_loss_amount:
+                if self.debug_mode:
+                    print(f"\n=== RECOVERY MODE: Trailing Stop Hit! Closing sequence. ===")
+                self.position.close()
+                if self.debug_mode:
+                    self.list_positions()
+                return
+
+        # --- LOCKED EXIT MODE (Wait for MA Cross) ---
         if self.locked_exit_mode:
-            if crossover(self.fast_ma, self.slow_ma):
-                print(f"\n=== LOCKED EXIT: Golden Cross detected. Closing all SHORT positions. ===")
+            dismantled = False
+            if crossover(self.fast_ma, self.slow_ma):  # Golden Cross
+                if self.debug_mode:
+                    print(f"\n=== LOCKED EXIT: Golden Cross detected. Closing all SHORT positions. ===")
                 for t in self.trades:
                     if t.is_short:
                         t.close()
-                self.locked_exit_mode = False
-                self.hedge_count = 0
-            elif crossover(self.slow_ma, self.fast_ma):
-                print(f"\n=== LOCKED EXIT: Death Cross detected. Closing all LONG positions. ===")
+                dismantled = True
+            elif crossover(self.slow_ma, self.fast_ma):  # Death Cross
+                if self.debug_mode:
+                    print(f"\n=== LOCKED EXIT: Death Cross detected. Closing all LONG positions. ===")
                 for t in self.trades:
                     if t.is_long:
                         t.close()
+                dismantled = True
+            
+            if dismantled:
                 self.locked_exit_mode = False
-                self.hedge_count = 0
-            self.list_positions()
+                self.recovery_mode = True
+                self.recovery_peak_pnl = sum(t.pl for t in self.trades)
+
+            if self.debug_mode:
+                self.list_positions()
             return
 
         # --- NORMAL MODE ---
-        long_signal = (self.plus_di[-1] > self.minus_di[-1] and 
-                       self.adx[-1] > self.threshold and 
-                       self.adx[-1] > self.adx[-2])
-        short_signal = (self.minus_di[-1] > self.plus_di[-1] and 
-                        self.adx[-1] > self.threshold and
-                        self.adx[-1] > self.adx[-2])
-
-        open_trades = list(self.trades)
-
-        if not open_trades:
-            self.hedge_count = 0
+        long_signal = (self.plus_di[-1] > self.minus_di[-1] and self.adx[-1] > self.threshold and self.adx[-1] > self.adx[-2])
+        short_signal = (self.minus_di[-1] > self.plus_di[-1] and self.adx[-1] > self.threshold and self.adx[-1] > self.adx[-2])
 
         # --- EXIT LOGIC ---
-        if len(open_trades) > 1:
-            pnl_total = sum(t.pl for t in open_trades)
-            notional_value = sum(abs(t.size * t.entry_price) for t in open_trades)
-            margin_used = notional_value / self.leverage
-            if margin_used > 0 and pnl_total / margin_used >= self.total_exit:
-                print(f"\n=== HEDGE TOTAL EXIT! Return on Margin: {pnl_total / margin_used:.2%} ===")
-                for t in open_trades:
-                    t.close()
-                self.list_positions()
-                return
-
-        if len(open_trades) == 1:
-            trade = open_trades[0]
-            notional_value = abs(trade.size * trade.entry_price)
-            margin_used = notional_value / self.leverage
-            if margin_used > 0 and trade.pl / margin_used >= self.take_profit:
-                print(f"\n=== INDIVIDUAL TAKE PROFIT! Return on Margin: {trade.pl / margin_used:.2%} ===")
-                trade.close()
-                self.list_positions()
-                return
+        if self.trades:
+            if len(self.trades) > 1:
+                pnl_total = sum(t.pl for t in self.trades)
+                notional_value = sum(abs(t.size * t.entry_price) for t in self.trades)
+                margin_used = notional_value / self.leverage
+                if margin_used > 0 and pnl_total / margin_used >= self.total_exit:
+                    if self.debug_mode:
+                        print(f"\n=== HEDGE TOTAL EXIT! Return on Margin: {pnl_total / margin_used:.2%} ===")
+                    self.position.close()
+                    if self.debug_mode:
+                        self.list_positions()
+                    return
+            elif len(self.trades) == 1:
+                trade = self.trades[0]
+                notional_value = abs(trade.size * trade.entry_price)
+                margin_used = notional_value / self.leverage
+                if margin_used > 0 and trade.pl / margin_used >= self.take_profit:
+                    if self.debug_mode:
+                        print(f"\n=== INDIVIDUAL TAKE PROFIT! Return on Margin: {trade.pl / margin_used:.2%} ===")
+                    trade.close()
+                    if self.debug_mode:
+                        self.list_positions()
+                    return
 
         # --- ENTRY LOGIC ---
-        if not open_trades:
+        if not self.trades:
             if long_signal:
                 self.buy(size=int(self.initial_size))
             elif short_signal:
                 self.sell(size=int(self.initial_size))
-            self.list_positions()
+            if self.debug_mode:
+                self.list_positions()
             return
 
-        if sum(t.pl for t in open_trades) < 0:
-            long_trades = [t for t in open_trades if t.is_long]
-            short_trades = [t for t in open_trades if t.is_short]
+        if sum(t.pl for t in self.trades) < 0:
+            long_trades = [t for t in self.trades if t.is_long]
+            short_trades = [t for t in self.trades if t.is_short]
             long_size_units = sum(t.size for t in long_trades)
             abs_short_size_units = sum(abs(t.size) for t in short_trades)
 
             if self.hedge_count == self.max_hedge_count - 1:
                 net_exposure = long_size_units - abs_short_size_units
                 if (short_signal and net_exposure > 0) or (long_signal and net_exposure < 0):
-                    print(f"\n=== FINAL HEDGE: Entering Locked Exit Mode. Neutralizing position. ===")
+                    if self.debug_mode:
+                        print(f"\n=== FINAL HEDGE: Entering Locked Exit Mode. Neutralizing position. ===")
                     self.locked_sequence_id += 1
                     for t in self.trades:
                         t.locked_sequence_id = self.locked_sequence_id
@@ -127,7 +167,6 @@ class DMIStrategy(Strategy):
                         new_trade.locked_sequence_id = self.locked_sequence_id
                     self.hedge_count += 1
                     self.locked_exit_mode = True
-            
             elif self.hedge_count < self.max_hedge_count - 1:
                 if long_signal and abs_short_size_units > long_size_units:
                     new_size = self.hedge_multiplier * abs_short_size_units
@@ -140,7 +179,8 @@ class DMIStrategy(Strategy):
                     self.sell(size=final_size)
                     self.hedge_count += 1
 
-        self.list_positions()
+        if self.debug_mode:
+            self.list_positions()
 
     def list_positions(self):
         open_trades = self.trades
@@ -153,7 +193,7 @@ class DMIStrategy(Strategy):
                 margin_used = notional_value / self.leverage
                 pnl_pct_on_margin = t.pl / margin_used if margin_used > 0 else 0
                 print(
-                    f"{ 'LONG' if t.is_long else 'SHORT'} | "
+                    f"{ 'LONG' if t.is_long else 'SHORT' } | "
                     f"Size: {t.size:.4f} | Entry: {t.entry_price:.2f} | "
                     f"PnL: {t.pl:.2f} | PnL % on Margin: {pnl_pct_on_margin:.2%}"
                 )
@@ -172,7 +212,7 @@ class DMIStrategy(Strategy):
                 exit_price = f"{t.exit_price:.2f}" if t.exit_price is not None else "-"
                 pl = f"{t.pl:.2f}" if t.pl is not None else "-"
                 print(
-                    f"{ 'LONG' if t.is_long else 'SHORT'} | "
+                    f"{ 'LONG' if t.is_long else 'SHORT' } | "
                     f"Size: {t.size:.4f} | Entry: {t.entry_price:.2f} | "
                     f"Exit: {exit_price} | PnL: {pl} | PnL % on Margin: {pnl_pct_on_margin:.2%}"
                 )
@@ -186,7 +226,7 @@ class DMIStrategy(Strategy):
                     'entry_price': t.entry_price,
                     'exit_price': t.exit_price,
                     'pl': t.pl,
-                    'locked_sequence_id': t.locked_sequence_id
+                    'locked_sequence_id': getattr(t, 'locked_sequence_id', 0)
                 })
             df = pd.DataFrame(trade_dicts)
             for seq_id, group in df.groupby('locked_sequence_id'):
