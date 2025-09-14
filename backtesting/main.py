@@ -39,7 +39,7 @@ strategy_params = {
     'initial_size': 1,
     'hedge_multiplier': 3,
     'leverage': leverage,
-    'max_hedge_count': 5,
+    'max_hedge_count': 7,
     'debug_mode': True,
 }
 
@@ -50,7 +50,8 @@ bt = Backtest(
     commission=commission,
     margin=1 / leverage,
     exclusive_orders=False,
-    hedging=True
+    hedging=True,
+    finalize_trades=True
 )
 
 stats = bt.run(**strategy_params)

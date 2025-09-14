@@ -164,6 +164,13 @@ class DMIStrategy(Strategy):
                 margin_used = notional_value / self.leverage
                 if margin_used > 0 and pnl_total / margin_used >= self.total_exit:
                     if self.debug_mode:
+                        print("\n" + "="*20 + " TOTAL EXIT VERIFICATION " + "="*20)
+                        print(f"Total PnL: {pnl_total:.2f}")
+                        print(f"Total Margin Used: {margin_used:.2f}")
+                        print(f"Return on Margin: {pnl_total / margin_used:.2%}")
+                        print(f"Exit Threshold: {self.total_exit:.2%}")
+                        print("Condition Met: Exiting all positions.")
+                        print("="*65)
                         print(f"\n=== HEDGE TOTAL EXIT! Return on Margin: {pnl_total / margin_used:.2%} ===")
                     self.position.close()
             elif len(open_trades) == 1:
