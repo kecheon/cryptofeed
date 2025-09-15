@@ -3,10 +3,11 @@ from backtesting import Backtest
 from dmi import DMIStrategy
 import pandas as pd
 from backtesting.lib import FractionalBacktest
+from dmi_defensive import DMIDefensiveStrategy
 
 
 # BTCUSD 1시간봉 예시
-data = yf.download("SOL-USD", start="2025-08-13", end="2025-09-11", interval="5m")
+data = yf.download("SOL-USD", start="2025-08-16", end="2025-09-15", interval="5m")
 
 # 멀티인덱스를 단일 레벨로 변환
 if isinstance(data.columns, pd.MultiIndex):
@@ -32,7 +33,7 @@ leverage = 10  # Set desired leverage (e.g., 10 for 10x)
 # Note: Leverage is defined here and also passed to the strategy
 # to ensure profit % is calculated against margin, not notional value.
 strategy_params = {
-    'exit_strategy_name': 'dismantle',
+    'exit_strategy_name': 'defensive_hedge',
     'adx_period': 14,
     'threshold': 25,
     'take_profit': 0.1,
@@ -40,13 +41,15 @@ strategy_params = {
     'initial_size': 1,
     'hedge_multiplier': 3,
     'leverage': leverage,
-    'max_hedge_count': 5,
+    'max_hedge_count': 3,
     'debug_mode': True,
+    'defensive_hedge_pct': 0.3,
 }
 
 bt = Backtest(
     data,
-    DMIStrategy,
+    # DMIStrategy,
+    DMIDefensiveStrategy,
     cash=cash,
     commission=commission,
     margin=1 / leverage,

@@ -69,9 +69,41 @@ def dismantling_strategy(strategy):
         strategy.sell(size=size_to_close_int, tag='dismantle')
         strategy.dismantle_side = 'short'
 
+def defensive_hedge_strategy(strategy):
+    """
+    When hedge limit is reached, find the losing side of the position,
+    cut a portion of it, and continue the martingale sequence.
+    """
+    if not strategy.trades:
+        return
+
+    open_trades = [t for t in strategy.trades if t.tag != 'dismantle']
+    long_trades = [t for t in open_trades if t.is_long]
+    short_trades = [t for t in open_trades if t.is_short]
+
+    if not long_trades or not short_trades:
+        return
+
+    long_pnl = sum(t.pl for t in long_trades)
+    short_pnl = sum(t.pl for t in short_trades)
+
+    if long_pnl < short_pnl:
+        if strategy.debug_mode:
+            print(f"\n=== DEFENSIVE HEDGE: Partially closing LONG side (PnL: {long_pnl:.2f}) ===\n")
+        for trade in long_trades:
+            trade.close(strategy.defensive_hedge_pct)
+    else:
+        if strategy.debug_mode:
+            print(f"\n=== DEFENSIVE HEDGE: Partially closing SHORT side (PnL: {short_pnl:.2f}) ===\n")
+        for trade in short_trades:
+            trade.close(strategy.defensive_hedge_pct)
+    
+    strategy.defensive_action_count += 1
+
 # ===================================
 # === EXIT STRATEGY REGISTRY ===
 # ===================================
 EXIT_STRATEGIES = {
     'dismantle': dismantling_strategy,
+    'defensive_hedge': defensive_hedge_strategy,
 }

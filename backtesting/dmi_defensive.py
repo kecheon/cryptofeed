@@ -1,0 +1,92 @@
+# dmi_defensive.py
+
+from dmi import DMIStrategy
+import math
+
+class DMIDefensiveStrategy(DMIStrategy):
+    """
+    This strategy inherits from DMIStrategy but overrides the next() method
+    to implement the "Defensive Hedge" logic instead of the "Dismantle" logic.
+    """
+    defensive_hedge_pct = 0.5 # New parameter
+
+    def init(self):
+        super().init()
+        self.defensive_action_count = 0
+        self.defensive_closed_keys = set()
+
+    def next(self):
+        if self.debug_mode:
+            print("="*80)
+            print(f"--- BAR: {len(self.data)} | HEDGES: {self.hedge_count} | DEFENSIVE_ACTIONS: {self.defensive_action_count} ---")
+
+        # --- State Reset ---
+        if not self.trades and self.hedge_count > 0:
+            self.hedge_count = 0
+            self.defensive_action_count = 0
+
+        # --- Hedging Logic (with Defensive Action) ---
+        long_signal = self.plus_di[-1] > self.minus_di[-1] and self.adx[-1] > self.threshold and self.adx[-1] > self.adx[-2]
+        short_signal = self.minus_di[-1] > self.plus_di[-1] and self.adx[-1] > self.threshold and self.adx[-1] > self.adx[-2]
+
+        if not self.trades:
+            if long_signal:
+                self.buy(size=int(self.initial_size), tag='initial')
+            elif short_signal:
+                self.sell(size=int(self.initial_size), tag='initial')
+        elif sum(t.pl for t in self.trades) < 0:
+            long_trades = [t for t in self.trades if t.is_long]
+            short_trades = [t for t in self.trades if t.is_short]
+            long_size_units = sum(t.size for t in long_trades)
+            abs_short_size_units = sum(abs(t.size) for t in short_trades)
+
+            hedge_needed = (long_signal and abs_short_size_units > long_size_units) or \
+                           (short_signal and long_size_units > abs_short_size_units)
+
+            if hedge_needed:
+                self.hedge_count += 1
+                if self.debug_mode: print(f"### HEDGE COUNT INCREMENTED TO: {self.hedge_count} ###")
+
+                # Check if it's time for a defensive action
+                if self.max_hedge_count > 0 and self.hedge_count % self.max_hedge_count == 0:
+                    # --- Defensive Hedge Action ---
+                    self.defensive_action_count += 1
+                    long_pnl = sum(t.pl for t in long_trades)
+                    short_pnl = sum(t.pl for t in short_trades)
+
+                    if long_pnl < short_pnl:
+                        if self.debug_mode: print(f"\n=== DEFENSIVE HEDGE: Partially closing LONG side ===\n")
+                        for trade in long_trades:
+                            trade_key = (trade.entry_bar, trade.entry_price, trade.size)
+                            self.defensive_closed_keys.add(trade_key)
+                            trade.close(self.defensive_hedge_pct)
+                    else:
+                        if self.debug_mode: print(f"\n=== DEFENSIVE HEDGE: Partially closing SHORT side ===\n")
+                        for trade in short_trades:
+                            trade_key = (trade.entry_bar, trade.entry_price, trade.size)
+                            self.defensive_closed_keys.add(trade_key)
+                            trade.close(self.defensive_hedge_pct)
+                else:
+                    # --- Normal Martingale Hedge ---
+                    if long_signal:
+                        new_size = self.hedge_multiplier * abs_short_size_units
+                        self.buy(size=max(1, int(math.ceil(new_size))), tag='hedge')
+                    elif short_signal:
+                        new_size = self.hedge_multiplier * long_size_units
+                        self.sell(size=max(1, int(math.ceil(new_size))), tag='hedge')
+
+        # --- Universal Exit Logic ---
+        if self.trades:
+            if len(self.trades) > 1:
+                pnl_total = sum(t.pl for t in self.trades)
+                notional_value = sum(abs(t.size * t.entry_price) for t in self.trades)
+                margin_used = notional_value / self.leverage
+                if margin_used > 0 and pnl_total / margin_used >= self.total_exit:
+                    self.position.close()
+            elif len(self.trades) == 1:
+                trade = self.trades[0]
+                if trade.pl / (abs(trade.size * trade.entry_price) / self.leverage) >= self.take_profit:
+                    trade.close()
+
+        if self.debug_mode:
+            self.list_positions()
