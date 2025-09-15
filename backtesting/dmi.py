@@ -28,6 +28,7 @@ class DMIStrategy(Strategy):
         self.locked_exit_mode = False
         self.locked_sequence_id = 0
         self.dismantle_side = None
+        self.dismantled_trades_log = []
 
         # Indicators
         df = self.data.df
@@ -42,7 +43,10 @@ class DMIStrategy(Strategy):
     def next(self):
         if self.debug_mode:
             print("="*80)
-            print(f"--- BAR: {len(self.data)} | HEDGES: {self.hedge_count} | LOCKED: {self.locked_exit_mode} | DISMANTLE: {self.dismantle_side} ---")
+            dismantle_target = 'None'
+            if self.dismantle_side:
+                dismantle_target = f"{self.dismantle_side.capitalize()} Side"
+            print(f"--- BAR: {len(self.data)} | HEDGES: {self.hedge_count} | LOCKED: {self.locked_exit_mode} | TARGETING: {dismantle_target} ---")
 
         # --- State Reset --- (If all positions are closed)
         if not self.trades:
@@ -50,6 +54,7 @@ class DMIStrategy(Strategy):
                 self.hedge_count = 0
                 self.locked_exit_mode = False
                 self.dismantle_side = None
+                self.dismantled_trades_log = []
 
         # --- Signals ---
         long_signal = (self.plus_di[-1] > self.minus_di[-1] and self.adx[-1] > self.threshold and self.adx[-1] > self.adx[-2])
@@ -58,8 +63,8 @@ class DMIStrategy(Strategy):
         # --- Main State Machine ---
         if self.locked_exit_mode:
             # --- LOCKED EXIT MODE (Take Profits & Wait) ---
-            long_trades = [t for t in self.trades if t.is_long]
-            short_trades = [t for t in self.trades if t.is_short]
+            long_trades = [t for t in self.trades if t.is_long and t.tag != 'dismantle']
+            short_trades = [t for t in self.trades if t.is_short and t.tag != 'dismantle']
 
             if not long_trades or not short_trades:
                 # This means one side is fully closed. Let the normal exit logic handle the rest.
@@ -70,34 +75,58 @@ class DMIStrategy(Strategy):
                     short_pnl = sum(t.pl for t in short_trades)
                     self.dismantle_side = 'short' if short_pnl > long_pnl else 'long'
 
+                # --- LOGIC TO DISMANTLE SHORT POSITION ---
                 if self.dismantle_side == 'short' and long_signal:
-                    abs_short_size_units = sum(abs(t.size) for t in short_trades)
-                    size_to_close_float = abs_short_size_units * self.dismantle_pct
-                    size_to_close_int = max(1, int(math.ceil(size_to_close_float)))
-                    if self.debug_mode:
-                        print(f"\n=== LOCKED EXIT: Long signal. Taking profit on {size_to_close_int} SHORT units. ===")
+                    short_size = sum(t.size for t in short_trades)
+                    short_value = sum(t.size * t.entry_price for t in short_trades)
+                    avg_short_price = short_value / short_size if short_size != 0 else 0
                     
-                    trades_before = len(self.trades)
-                    self.buy(size=size_to_close_int, tag='dismantle')
-                    if len(self.trades) > trades_before:
-                        new_trade = self.trades[-1]
-                        new_trade.locked_sequence_id = self.locked_sequence_id
+                    size_to_close_float = abs(short_size) * self.dismantle_pct
+                    size_to_close_int = max(1, int(math.ceil(size_to_close_float)))
+                    
+                    exit_price = self.data.Close[-1]
+                    realized_pnl = size_to_close_int * (avg_short_price - exit_price)
+                    log_entry = {
+                        'side': 'SHORT',
+                        'size': -size_to_close_int,
+                        'entry_price': avg_short_price,
+                        'exit_price': exit_price,
+                        'pnl': realized_pnl,
+                        'timestamp': self.data.index[-1]
+                    }
+                    self.dismantled_trades_log.append(log_entry)
 
+                    if self.debug_mode:
+                        print(f"\n=== DISMANTLING: Closing {size_to_close_int} units of SHORT position at {exit_price:.2f} ===")
+
+                    self.buy(size=size_to_close_int, tag='dismantle')
                     self.dismantle_side = 'long'
                 
+                # --- LOGIC TO DISMANTLE LONG POSITION ---
                 elif self.dismantle_side == 'long' and short_signal:
-                    long_size_units = sum(t.size for t in long_trades)
-                    size_to_close_float = long_size_units * self.dismantle_pct
+                    long_size = sum(t.size for t in long_trades)
+                    long_value = sum(t.size * t.entry_price for t in long_trades)
+                    avg_long_price = long_value / long_size if long_size > 0 else 0
+
+                    size_to_close_float = long_size * self.dismantle_pct
                     size_to_close_int = max(1, int(math.ceil(size_to_close_float)))
+
+                    exit_price = self.data.Close[-1]
+                    realized_pnl = size_to_close_int * (exit_price - avg_long_price)
+                    log_entry = {
+                        'side': 'LONG',
+                        'size': size_to_close_int,
+                        'entry_price': avg_long_price,
+                        'exit_price': exit_price,
+                        'pnl': realized_pnl,
+                        'timestamp': self.data.index[-1]
+                    }
+                    self.dismantled_trades_log.append(log_entry)
+
                     if self.debug_mode:
-                        print(f"\n=== LOCKED EXIT: Short signal. Taking profit on {size_to_close_int} LONG units. ===")
+                        print(f"\n=== DISMANTLING: Closing {size_to_close_int} units of LONG position at {exit_price:.2f} ===")
 
-                    trades_before = len(self.trades)
                     self.sell(size=size_to_close_int, tag='dismantle')
-                    if len(self.trades) > trades_before:
-                        new_trade = self.trades[-1]
-                        new_trade.locked_sequence_id = self.locked_sequence_id
-
                     self.dismantle_side = 'short'
         else:
             # --- NORMAL MODE ---
@@ -113,7 +142,6 @@ class DMIStrategy(Strategy):
                 long_size_units = sum(t.size for t in long_trades)
                 abs_short_size_units = sum(abs(t.size) for t in short_trades)
 
-                # Decide if a hedge is needed
                 hedge_needed = False
                 if long_signal and abs_short_size_units > long_size_units:
                     hedge_needed = True
@@ -121,31 +149,29 @@ class DMIStrategy(Strategy):
                     hedge_needed = True
 
                 if hedge_needed:
-                    self.hedge_count += 1 # Increment hedge_count BEFORE placing the trade
+                    self.hedge_count += 1
                     if self.debug_mode: print(f"### HEDGE COUNT INCREMENTED TO: {self.hedge_count} ###")
 
-                    if self.hedge_count == self.max_hedge_count: # Now check if it's the final hedge
-                        net_exposure = long_size_units - abs_short_size_units
-                        if self.debug_mode:
-                            print(f"\n=== FINAL HEDGE: Entering Locked Sequence. Neutralizing position. ===")
-                        
+                    if self.hedge_count == self.max_hedge_count:
                         self.locked_sequence_id += 1
                         for t in self.trades:
                             t.locked_sequence_id = self.locked_sequence_id
-
+                        
                         trades_before = len(self.trades)
-                        if net_exposure > 0:
-                            self.sell(size=abs(net_exposure), tag='neutralizing')
-                        elif net_exposure < 0:
-                            self.buy(size=abs(net_exposure), tag='neutralizing')
+                        if long_size_units > abs_short_size_units:
+                            size_to_sell = long_size_units - abs_short_size_units
+                            self.sell(size=size_to_sell, tag='neutralizing')
+                        elif abs_short_size_units > long_size_units:
+                            size_to_buy = abs_short_size_units - long_size_units
+                            self.buy(size=size_to_buy, tag='neutralizing')
 
                         if len(self.trades) > trades_before:
                             new_trade = self.trades[-1]
                             new_trade.locked_sequence_id = self.locked_sequence_id
                         
-                        self.locked_exit_mode = True # LOCK ENGAGED
+                        self.locked_exit_mode = True
                         self.dismantle_side = None
-                    elif self.hedge_count < self.max_hedge_count: # Normal martingale hedge
+                    elif self.hedge_count < self.max_hedge_count:
                         if long_signal and abs_short_size_units > long_size_units:
                             new_size = self.hedge_multiplier * abs_short_size_units
                             final_size = max(1, int(math.ceil(new_size)))
@@ -186,23 +212,70 @@ class DMIStrategy(Strategy):
             self.list_positions()
 
     def list_positions(self):
-        open_trades = self.trades
-        if self.debug_mode:
-            print("\n=== OPEN TRADES ===")
-            if not open_trades:
-                print("No open positions.")
-            else:
-                for t in open_trades:
-                    notional_value = abs(t.size * t.entry_price)
-                    margin_used = notional_value / self.leverage
-                    pnl_pct_on_margin = t.pl / margin_used if margin_used > 0 else 0
-                    role = t.tag or 'unclassified'
-                    print(
-                        f"{'LONG' if t.is_long else 'SHORT'} | "
-                        f"Role: {role:<12} | Size: {t.size:.4f} | Entry: {t.entry_price:.2f} | "
-                        f"PnL: {t.pl:.2f} | PnL % on Margin: {pnl_pct_on_margin:.2%}"
-                    )
+        if not self.debug_mode:
+            return
 
+        # =====================================================================
+        # --- POSITIONS OVERVIEW (V4 - FINAL) ---
+        # =====================================================================
+        print("\n=== POSITIONS OVERVIEW ===")
+
+        open_base_trades = [t for t in self.trades if t.tag != 'dismantle']
+        
+        total_dismantled_long_size = sum(log['size'] for log in self.dismantled_trades_log if log['side'] == 'LONG')
+        total_dismantled_short_size = sum(log['size'] for log in self.dismantled_trades_log if log['side'] == 'SHORT')
+
+        base_long_trades = [t for t in open_base_trades if t.is_long]
+        base_short_trades = [t for t in open_base_trades if t.is_short]
+
+        base_long_size = sum(t.size for t in base_long_trades)
+        base_short_size = sum(t.size for t in base_short_trades)
+        
+        display_long_size = base_long_size - total_dismantled_long_size
+        display_short_size = base_short_size - total_dismantled_short_size
+
+        if display_long_size > 0.0001:
+            net_long_value = sum(t.size * t.entry_price for t in base_long_trades)
+            avg_long_price = net_long_value / base_long_size if base_long_size > 0 else 0
+            unrealized_long_pnl = sum(t.pl for t in base_long_trades)
+            print(
+                f"LONG  | "
+                f"Size: {display_long_size:<10.4f} | Avg Entry: {avg_long_price:<8.2f} | "
+                f"Unrealized PnL: {unrealized_long_pnl:<8.2f}"
+            )
+
+        if display_short_size < -0.0001:
+            net_short_value = sum(t.size * t.entry_price for t in base_short_trades)
+            avg_short_price = net_short_value / base_short_size if base_short_size != 0 else 0
+            unrealized_short_pnl = sum(t.pl for t in base_short_trades)
+            print(
+                f"SHORT | "
+                f"Size: {display_short_size:<10.4f} | Avg Entry: {avg_short_price:<8.2f} | "
+                f"Unrealized PnL: {unrealized_short_pnl:<8.2f}"
+            )
+        
+        # =====================================================================
+        # --- REALIZED DISMANTLE LOG ---
+        # =====================================================================
+        print("\n=== REALIZED DISMANTLE LOG ===")
+        if not self.dismantled_trades_log:
+            print("No dismantle actions have been logged yet.")
+        else:
+            total_realized_pnl = 0
+            for log in self.dismantled_trades_log:
+                total_realized_pnl += log['pnl']
+                print(
+                    f"{log['timestamp']} | {log['side']:<5} | "
+                    f"Size: {log['size']:<8.4f} | Entry: {log['entry_price']:<8.2f} | "
+                    f"Exit: {log['exit_price']:<8.2f} | PnL: {log['pnl']:.2f}"
+                )
+            print(f"------------------------------------------------------------------")
+            print(f"Total Realized PnL from Dismantling: {total_realized_pnl:.2f}")
+
+
+        # =====================================================================
+        # --- CLOSED TRADES (ORIGINAL LOGIC) ---
+        # =====================================================================
         normal_closed = [t for t in self.closed_trades if not hasattr(t, 'locked_sequence_id')]
         locked_trades = [t for t in self.closed_trades if hasattr(t, 'locked_sequence_id')]
 
@@ -219,7 +292,7 @@ class DMIStrategy(Strategy):
                     pl = f"{t.pl:.2f}" if t.pl is not None else "-"
                     role = t.tag or 'unclassified'
                     print(
-                        f"{'LONG' if t.is_long else 'SHORT'} | "
+                        f"{('LONG' if t.is_long else 'SHORT')} | "
                         f"Role: {role:<12} | Size: {t.size:.4f} | Entry: {t.entry_price:.2f} | "
                         f"Exit: {exit_price} | PnL: {pl} | PnL % on Margin: {pnl_pct_on_margin:.2%}"
                     )

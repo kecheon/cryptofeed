@@ -39,7 +39,7 @@ strategy_params = {
     'initial_size': 1,
     'hedge_multiplier': 3,
     'leverage': leverage,
-    'max_hedge_count': 7,
+    'max_hedge_count': 5,
     'debug_mode': True,
 }
 
