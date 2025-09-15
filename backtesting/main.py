@@ -32,6 +32,7 @@ leverage = 10  # Set desired leverage (e.g., 10 for 10x)
 # Note: Leverage is defined here and also passed to the strategy
 # to ensure profit % is calculated against margin, not notional value.
 strategy_params = {
+    'exit_strategy_name': 'dismantle',
     'adx_period': 14,
     'threshold': 25,
     'take_profit': 0.1,
