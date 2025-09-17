@@ -2,6 +2,7 @@
 
 from dmi import DMIStrategy
 import math
+import pandas as pd
 
 class DMIDefensiveStrategy(DMIStrategy):
     """
@@ -90,3 +91,37 @@ class DMIDefensiveStrategy(DMIStrategy):
 
         if self.debug_mode:
             self.list_positions()
+
+    def list_positions(self):
+        if not self.debug_mode:
+            return
+
+        print("\n=== OPEN TRADES ===")
+        if not self.trades:
+            print("No open positions.")
+        else:
+            for t in self.trades:
+                print(f"{'LONG' if t.is_long else 'SHORT'} | Role: {t.tag or 'unclassified':<12} | Size: {t.size:.4f} | Entry: {t.entry_price:.2f} | PnL: {t.pl:.2f}")
+
+        normal_closed = [t for t in self.closed_trades if not hasattr(t, 'locked_sequence_id')]
+        if normal_closed:
+            print("\n=== CLOSED TRADES (NORMAL) ===")
+            for t in normal_closed:
+                trade_key = (t.entry_bar, t.entry_price, t.size)
+                role = t.tag or 'unclassified'
+                if trade_key in self.defensive_closed_keys:
+                    role = 'defensive_sl'
+                print(f"{'LONG' if t.is_long else 'SHORT'} | Role: {role:<12} | Size: {t.size:.4f} | Entry: {t.entry_price:.2f} | Exit: {t.exit_price:.2f} | PnL: {t.pl:.2f}")
+
+        locked_trades = [t for t in self.closed_trades if hasattr(t, 'locked_sequence_id')]
+        if locked_trades:
+            print("\n=== CLOSED TRADES (FROM LOCKED SEQUENCES) ===")
+            df = pd.DataFrame([{
+                'size': t.size, 'entry_price': t.entry_price, 'exit_price': t.exit_price,
+                'pl': t.pl, 'locked_sequence_id': t.locked_sequence_id, 'role': t.tag
+            } for t in locked_trades])
+            for seq_id, group in df.groupby('locked_sequence_id'):
+                print(f"\n--- Sequence ID: {int(seq_id)} ---")
+                print(f"  Total PnL for this sequence: {group['pl'].sum():.2f}")
+                for _, trade in group.iterrows():
+                    print(f"  {'LONG' if trade['size'] > 0 else 'SHORT'} | Role: {trade['role']:<12} | Size: {trade['size']:.4f} | Entry: {trade['entry_price']:.2f} | Exit: {trade['exit_price']:.2f} | PnL: {trade['pl']:.2f}")

@@ -43,7 +43,7 @@ strategy_params = {
     'leverage': leverage,
     'max_hedge_count': 3,
     'debug_mode': True,
-    'defensive_hedge_pct': 0.3,
+    'defensive_hedge_pct': 0.5,
 }
 
 bt = Backtest(
