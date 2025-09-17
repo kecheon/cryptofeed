@@ -14,7 +14,6 @@ class DMIDefensiveStrategy(DMIStrategy):
     def init(self):
         super().init()
         self.defensive_action_count = 0
-        self.defensive_closed_keys = set()
 
     def next(self):
         if self.debug_mode:
@@ -48,33 +47,26 @@ class DMIDefensiveStrategy(DMIStrategy):
                 self.hedge_count += 1
                 if self.debug_mode: print(f"### HEDGE COUNT INCREMENTED TO: {self.hedge_count} ###")
 
-                # Check if it's time for a defensive action
                 if self.max_hedge_count > 0 and self.hedge_count % self.max_hedge_count == 0:
-                    # --- Defensive Hedge Action ---
                     self.defensive_action_count += 1
-                    long_pnl = sum(t.pl for t in long_trades)
-                    short_pnl = sum(t.pl for t in short_trades)
-
-                    if long_pnl < short_pnl:
-                        if self.debug_mode: print(f"\n=== DEFENSIVE HEDGE: Partially closing LONG side ===\n")
-                        for trade in long_trades:
-                            trade_key = (trade.entry_bar, trade.entry_price, trade.size)
-                            self.defensive_closed_keys.add(trade_key)
-                            trade.close(self.defensive_hedge_pct)
-                    else:
-                        if self.debug_mode: print(f"\n=== DEFENSIVE HEDGE: Partially closing SHORT side ===\n")
-                        for trade in short_trades:
-                            trade_key = (trade.entry_bar, trade.entry_price, trade.size)
-                            self.defensive_closed_keys.add(trade_key)
-                            trade.close(self.defensive_hedge_pct)
-                else:
-                    # --- Normal Martingale Hedge ---
                     if long_signal:
-                        new_size = self.hedge_multiplier * abs_short_size_units
-                        self.buy(size=max(1, int(math.ceil(new_size))), tag='hedge')
+                        if self.debug_mode: print(f"\n=== DEFENSIVE HEDGE: Trend is UP. Partially closing SHORT side. ===\n")
+                        for trade in short_trades:
+                            trade._replace(tag='defensive_sl')
+                            trade.close(self.defensive_hedge_pct)
                     elif short_signal:
-                        new_size = self.hedge_multiplier * long_size_units
-                        self.sell(size=max(1, int(math.ceil(new_size))), tag='hedge')
+                        if self.debug_mode: print(f"\n=== DEFENSIVE HEDGE: Trend is DOWN. Partially closing LONG side. ===\n")
+                        for trade in long_trades:
+                            trade._replace(tag='defensive_sl')
+                            trade.close(self.defensive_hedge_pct)
+                
+                # Place the new hedge trade
+                if long_signal:
+                    new_size = self.hedge_multiplier * abs_short_size_units*(1-self.defensive_hedge_pct)
+                    self.buy(size=max(1, int(math.ceil(new_size))), tag='hedge')
+                elif short_signal:
+                    new_size = self.hedge_multiplier * long_size_units*(1-self.defensive_hedge_pct)
+                    self.sell(size=max(1, int(math.ceil(new_size))), tag='hedge')
 
         # --- Universal Exit Logic ---
         if self.trades:
@@ -93,6 +85,7 @@ class DMIDefensiveStrategy(DMIStrategy):
             self.list_positions()
 
     def list_positions(self):
+        # This method is overridden to simplify the output for this strategy
         if not self.debug_mode:
             return
 
@@ -107,21 +100,4 @@ class DMIDefensiveStrategy(DMIStrategy):
         if normal_closed:
             print("\n=== CLOSED TRADES (NORMAL) ===")
             for t in normal_closed:
-                trade_key = (t.entry_bar, t.entry_price, t.size)
-                role = t.tag or 'unclassified'
-                if trade_key in self.defensive_closed_keys:
-                    role = 'defensive_sl'
-                print(f"{'LONG' if t.is_long else 'SHORT'} | Role: {role:<12} | Size: {t.size:.4f} | Entry: {t.entry_price:.2f} | Exit: {t.exit_price:.2f} | PnL: {t.pl:.2f}")
-
-        locked_trades = [t for t in self.closed_trades if hasattr(t, 'locked_sequence_id')]
-        if locked_trades:
-            print("\n=== CLOSED TRADES (FROM LOCKED SEQUENCES) ===")
-            df = pd.DataFrame([{
-                'size': t.size, 'entry_price': t.entry_price, 'exit_price': t.exit_price,
-                'pl': t.pl, 'locked_sequence_id': t.locked_sequence_id, 'role': t.tag
-            } for t in locked_trades])
-            for seq_id, group in df.groupby('locked_sequence_id'):
-                print(f"\n--- Sequence ID: {int(seq_id)} ---")
-                print(f"  Total PnL for this sequence: {group['pl'].sum():.2f}")
-                for _, trade in group.iterrows():
-                    print(f"  {'LONG' if trade['size'] > 0 else 'SHORT'} | Role: {trade['role']:<12} | Size: {trade['size']:.4f} | Entry: {trade['entry_price']:.2f} | Exit: {trade['exit_price']:.2f} | PnL: {trade['pl']:.2f}")
+                print(f"{'LONG' if t.is_long else 'SHORT'} | Role: {t.tag or 'unclassified':<12} | Size: {t.size:.4f} | Entry: {t.entry_price:.2f} | Exit: {t.exit_price:.2f} | PnL: {t.pl:.2f}")
