@@ -5,7 +5,7 @@ from backtesting.lib import crossover
 from ta.trend import ADXIndicator
 import math
 
-from exit_strategies import EXIT_STRATEGIES
+from entry_signals import ENTRY_SIGNALS
 
 def sma(series, n):
     """Helper for calculating a Simple Moving Average"""
@@ -13,7 +13,7 @@ def sma(series, n):
 
 class DMIStrategy(Strategy):
     # --- Strategy Parameters ---
-    exit_strategy_name = 'dismantle' # Name of the exit strategy to use
+    entry_signal_name = 'dmi'
     adx_period = 14
     threshold = 25
     take_profit = 0.01
@@ -22,7 +22,7 @@ class DMIStrategy(Strategy):
     hedge_multiplier = 2.0
     leverage = 1.0
     debug_mode = True
-    max_hedge_count = 3
+    max_hedge_count = 5
     dismantle_pct = 0.25
 
     def init(self):
@@ -33,8 +33,8 @@ class DMIStrategy(Strategy):
         self.dismantle_side = None
         self.dismantled_trades_log = []
 
-        # --- Set the Exit Strategy ---
-        self.exit_strategy = EXIT_STRATEGIES[self.exit_strategy_name]
+        # --- Set Strategy Functions ---
+        self.entry_signal = ENTRY_SIGNALS[self.entry_signal_name]
 
         # --- Indicators ---
         df = pd.DataFrame({
@@ -62,14 +62,50 @@ class DMIStrategy(Strategy):
             self.dismantle_side = None
             self.dismantled_trades_log = []
 
-        # --- Locked Mode: Execute Exit Strategy ---
-        if self.locked_exit_mode:
-            self.exit_strategy(self)
-        # --- Normal Mode: Hedging Logic ---
-        else:
-            long_signal = self.plus_di[-1] > self.minus_di[-1] and self.adx[-1] > self.threshold and self.adx[-1] > self.adx[-2]
-            short_signal = self.minus_di[-1] > self.plus_di[-1] and self.adx[-1] > self.threshold and self.adx[-1] > self.adx[-2]
+        long_signal, short_signal = self.entry_signal(self)
 
+        if self.locked_exit_mode:
+            # --- LOCKED EXIT MODE (Dismantle) ---
+            long_trades = [t for t in self.trades if t.is_long and t.tag != 'dismantle']
+            short_trades = [t for t in self.trades if t.is_short and t.tag != 'dismantle']
+
+            if not long_trades or not short_trades:
+                return
+
+            if self.dismantle_side is None:
+                long_pnl = sum(t.pl for t in long_trades)
+                short_pnl = sum(t.pl for t in short_trades)
+                self.dismantle_side = 'short' if short_pnl > long_pnl else 'long'
+
+            if self.dismantle_side == 'short' and long_signal:
+                short_size = sum(t.size for t in short_trades)
+                short_value = sum(t.size * t.entry_price for t in short_trades)
+                avg_short_price = short_value / short_size if short_size != 0 else 0
+                size_to_close = max(1, int(math.ceil(abs(short_size) * self.dismantle_pct)))
+                exit_price = self.data.Close[-1]
+                realized_pnl = size_to_close * (avg_short_price - exit_price)
+                self.dismantled_trades_log.append({
+                    'side': 'SHORT', 'size': -size_to_close, 'entry_price': avg_short_price,
+                    'exit_price': exit_price, 'pnl': realized_pnl, 'timestamp': self.data.index[-1]
+                })
+                self.buy(size=size_to_close, tag='dismantle')
+                self.dismantle_side = 'long'
+            
+            elif self.dismantle_side == 'long' and short_signal:
+                long_size = sum(t.size for t in long_trades)
+                long_value = sum(t.size * t.entry_price for t in long_trades)
+                avg_long_price = long_value / long_size if long_size > 0 else 0
+                size_to_close = max(1, int(math.ceil(long_size * self.dismantle_pct)))
+                exit_price = self.data.Close[-1]
+                realized_pnl = size_to_close * (exit_price - avg_long_price)
+                self.dismantled_trades_log.append({
+                    'side': 'LONG', 'size': size_to_close, 'entry_price': avg_long_price,
+                    'exit_price': exit_price, 'pnl': realized_pnl, 'timestamp': self.data.index[-1]
+                })
+                self.sell(size=size_to_close, tag='dismantle')
+                self.dismantle_side = 'short'
+        else:
+            # --- NORMAL MODE (Hedging) ---
             if not self.trades:
                 if long_signal:
                     self.buy(size=int(self.initial_size), tag='initial')
@@ -86,8 +122,6 @@ class DMIStrategy(Strategy):
 
                 if hedge_needed:
                     self.hedge_count += 1
-                    if self.debug_mode: print(f"### HEDGE COUNT INCREMENTED TO: {self.hedge_count} ###")
-
                     if self.hedge_count == self.max_hedge_count:
                         self.locked_sequence_id += 1
                         for t in self.trades:
@@ -95,46 +129,26 @@ class DMIStrategy(Strategy):
                         
                         trades_before = len(self.trades)
                         if long_size_units > abs_short_size_units:
-                            size_to_sell = long_size_units - abs_short_size_units
-                            self.sell(size=size_to_sell, tag='neutralizing')
+                            self.sell(size=(long_size_units - abs_short_size_units), tag='neutralizing')
                         elif abs_short_size_units > long_size_units:
-                            size_to_buy = abs_short_size_units - long_size_units
-                            self.buy(size=size_to_buy, tag='neutralizing')
+                            self.buy(size=(abs_short_size_units - long_size_units), tag='neutralizing')
 
                         if len(self.trades) > trades_before:
-                            new_trade = self.trades[-1]
-                            new_trade.locked_sequence_id = self.locked_sequence_id
+                            self.trades[-1].locked_sequence_id = self.locked_sequence_id
                         
                         self.locked_exit_mode = True
                         self.dismantle_side = None
                     else:
                         if long_signal:
-                            new_size = self.hedge_multiplier * abs_short_size_units
-                            self.buy(size=max(1, int(math.ceil(new_size))), tag='hedge')
+                            self.buy(size=max(1, int(math.ceil(self.hedge_multiplier * abs_short_size_units))), tag='hedge')
                         elif short_signal:
-                            new_size = self.hedge_multiplier * long_size_units
-                            self.sell(size=max(1, int(math.ceil(new_size))), tag='hedge')
+                            self.sell(size=max(1, int(math.ceil(self.hedge_multiplier * long_size_units))), tag='hedge')
 
-        # --- Universal Exit Logic ---
         if self.trades:
-            if len(self.trades) > 1:
-                pnl_total = sum(t.pl for t in self.trades)
-                notional_value = sum(abs(t.size * t.entry_price) for t in self.trades)
-                margin_used = notional_value / self.leverage
-                if margin_used > 0 and pnl_total / margin_used >= self.total_exit:
-                    if self.debug_mode:
-                        print("\n" + "="*20 + " TOTAL EXIT VERIFICATION " + "="*20)
-                        print(f"Total PnL: {pnl_total:.2f}")
-                        print(f"Total Margin Used: {margin_used:.2f}")
-                        print(f"Return on Margin: {pnl_total / margin_used:.2%}")
-                        print(f"Exit Threshold: {self.total_exit:.2%}")
-                        print("Condition Met: Exiting all positions.")
-                        print("="*65)
-                    self.position.close()
-            elif len(self.trades) == 1:
-                trade = self.trades[0]
-                if trade.pl / (abs(trade.size * trade.entry_price) / self.leverage) >= self.take_profit:
-                    trade.close()
+            if len(self.trades) > 1 and sum(t.pl for t in self.trades) / (sum(abs(t.size * t.entry_price) for t in self.trades) / self.leverage) >= self.total_exit:
+                self.position.close()
+            elif len(self.trades) == 1 and self.trades[0].pl / (abs(self.trades[0].size * self.trades[0].entry_price) / self.leverage) >= self.take_profit:
+                self.trades[0].close()
 
         if self.debug_mode:
             self.list_positions()
