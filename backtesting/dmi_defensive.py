@@ -6,11 +6,6 @@ import pandas as pd
 from entry_signals import ENTRY_SIGNALS
 
 class DMIDefensiveStrategy(DMIStrategy):
-    """
-    This strategy inherits from DMIStrategy but overrides the next() method
-    to implement the "Defensive Hedge" logic instead of the "Dismantle" logic.
-    """
-    defensive_hedge_pct = 0.5 # New parameter
 
     def init(self):
         super().init()
@@ -117,8 +112,7 @@ class DMIDefensiveStrategy(DMIStrategy):
         locked_trades = [t for t in self.closed_trades if hasattr(t, 'locked_sequence_id')]
         if locked_trades:
             print("\n=== CLOSED TRADES (FROM LOCKED SEQUENCES) ===")
-            df = pd.DataFrame([
-                {'size': t.size, 'entry_price': t.entry_price, 'exit_price': t.exit_price,
+            df = pd.DataFrame([{'size': t.size, 'entry_price': t.entry_price, 'exit_price': t.exit_price,
                  'pl': t.pl, 'locked_sequence_id': t.locked_sequence_id, 'role': t.tag
             } for t in locked_trades])
             for seq_id, group in df.groupby('locked_sequence_id'):

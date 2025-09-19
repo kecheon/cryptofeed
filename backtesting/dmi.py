@@ -26,7 +26,7 @@ class DMIStrategy(Strategy):
     debug_mode = True
     max_hedge_count = 5
     dismantle_pct = 0.25
-    defensive_hedge_pct = 0.5 # Add for compatibility with child class
+    defensive_hedge_pct = 0.5
 
     def init(self):
         # --- State Variables ---

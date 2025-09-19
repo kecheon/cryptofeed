@@ -1,63 +1,70 @@
 import yfinance as yf
 from backtesting import Backtest
 from dmi import DMIStrategy
+from dmi_defensive import DMIDefensiveStrategy # Import the new strategy
 import pandas as pd
-from backtesting.lib import FractionalBacktest
-from dmi_defensive import DMIDefensiveStrategy
 
+# --- Import Strategy Libraries ---
+from entry_signals import ENTRY_SIGNALS
+from exit_strategies import EXIT_STRATEGIES
 
-# BTCUSD 1시간봉 예시
-data = yf.download("SOL-USD", start="2025-08-01", end="2025-08-30", interval="5m")
+# ===================================
+# === CONFIGURATION ===
+# ===================================
+STRATEGY_TO_RUN = DMIDefensiveStrategy # or DMIStrategy
+ENTRY_SIGNAL_NAME = 'dmi'
+EXIT_STRATEGY_NAME = 'defensive_hedge' # or 'dismantle'
+# ===================================
 
-# 멀티인덱스를 단일 레벨로 변환
+# Download data
+data = yf.download("SOL-USD", start="2025-08-16", end="2025-09-15", interval="5m")
+
 if isinstance(data.columns, pd.MultiIndex):
     data.columns = data.columns.get_level_values(0)
 
-# backtesting.py 요구 컬럼명 매핑
-data = data.rename(
-    columns={
-        "Open": "Open",
-        "High": "High",
-        "Low": "Low",
-        "Close": "Close",
-        "Volume": "Volume",
-    }
-)
+data = data.rename(columns=lambda x: x.capitalize())
 
 # --- Backtest Configuration ---
 cash = 10000
 commission = 0.0005
-leverage = 10  # Set desired leverage (e.g., 10 for 10x)
+leverage = 10
 
 # --- Strategy Parameters ---
-# Note: Leverage is defined here and also passed to the strategy
-# to ensure profit % is calculated against margin, not notional value.
+# Core parameters shared by all strategies
 strategy_params = {
-    'entry_signal_name': 'dmi',
-    # 'exit_strategy_name': 'dismantle',
-    'exit_strategy_name': 'defensive_hedge',
-    'adx_period': 14,
-    'threshold': 25,
-    'take_profit': 0.1,
-    'total_exit': 0.05,
+    'entry_signal_name': ENTRY_SIGNAL_NAME,
+    'exit_strategy_name': EXIT_STRATEGY_NAME,
+    'leverage': leverage,
+    'max_hedge_count': 1,
+    'take_profit': 0.01,
+    'total_exit': 0.005,
     'initial_size': 1,
     'hedge_multiplier': 2,
-    'leverage': leverage,
-    'max_hedge_count': 2,
     'debug_mode': True,
-    'defensive_hedge_pct': 0.5,
+    'dismantle_pct': 0.5,
+    'defensive_hedge_pct': 0.9,
+    # Add other core params here
 }
+
+# Add parameters specific to the chosen exit strategy
+if EXIT_STRATEGY_NAME in EXIT_STRATEGIES:
+    strategy_params.update(EXIT_STRATEGIES[EXIT_STRATEGY_NAME]['params'])
+
+# Add parameters specific to the chosen entry signal
+if ENTRY_SIGNAL_NAME in ENTRY_SIGNALS:
+    # Assuming entry signals might have params in the future
+    if 'params' in ENTRY_SIGNALS[ENTRY_SIGNAL_NAME]:
+        strategy_params.update(ENTRY_SIGNALS[ENTRY_SIGNAL_NAME]['params'])
+
 
 bt = Backtest(
     data,
-    # DMIStrategy,
-    DMIDefensiveStrategy,
+    STRATEGY_TO_RUN,
     cash=cash,
     commission=commission,
     margin=1 / leverage,
     exclusive_orders=False,
-    hedging=True,
-    finalize_trades=True
+    hedging=True
 )
 
 stats = bt.run(**strategy_params)
