@@ -10,18 +10,12 @@ class DMIDefensiveStrategy(DMIStrategy):
     This strategy inherits from DMIStrategy but overrides the next() method
     to implement the "Defensive Hedge" logic instead of the "Dismantle" logic.
     """
-    # Add parent parameters to satisfy the library's requirements
-    entry_signal_name = 'dmi'
-    exit_strategy_name = None
-
     defensive_hedge_pct = 0.5 # New parameter
 
     def init(self):
         super().init()
         self.defensive_action_count = 0
         self.defensive_closed_keys = set()
-        # This strategy will use the same entry signal module
-        self.entry_signal = ENTRY_SIGNALS[self.entry_signal_name]
 
     def next(self):
         if self.debug_mode:
@@ -33,8 +27,10 @@ class DMIDefensiveStrategy(DMIStrategy):
             self.hedge_count = 0
             self.defensive_action_count = 0
 
-        long_signal, short_signal = self.entry_signal(self)
+        # --- Get Signals ---
+        long_signal, short_signal = self.entry_signal['run'](self)
 
+        # --- Hedging Logic (with Defensive Action) ---
         if not self.trades:
             if long_signal:
                 self.buy(size=int(self.initial_size), tag='initial')
@@ -124,7 +120,7 @@ class DMIDefensiveStrategy(DMIStrategy):
             df = pd.DataFrame([
                 {'size': t.size, 'entry_price': t.entry_price, 'exit_price': t.exit_price,
                  'pl': t.pl, 'locked_sequence_id': t.locked_sequence_id, 'role': t.tag
-                } for t in locked_trades])
+            } for t in locked_trades])
             for seq_id, group in df.groupby('locked_sequence_id'):
                 print(f"\n--- Sequence ID: {int(seq_id)} ---")
                 print(f"  Total PnL for this sequence: {group['pl'].sum():.2f}")

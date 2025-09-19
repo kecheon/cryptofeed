@@ -7,7 +7,7 @@ from dmi_defensive import DMIDefensiveStrategy
 
 
 # BTCUSD 1시간봉 예시
-data = yf.download("SOL-USD", start="2025-08-16", end="2025-09-15", interval="5m")
+data = yf.download("SOL-USD", start="2025-08-01", end="2025-08-30", interval="5m")
 
 # 멀티인덱스를 단일 레벨로 변환
 if isinstance(data.columns, pd.MultiIndex):
@@ -33,15 +33,17 @@ leverage = 10  # Set desired leverage (e.g., 10 for 10x)
 # Note: Leverage is defined here and also passed to the strategy
 # to ensure profit % is calculated against margin, not notional value.
 strategy_params = {
+    'entry_signal_name': 'dmi',
+    # 'exit_strategy_name': 'dismantle',
     'exit_strategy_name': 'defensive_hedge',
     'adx_period': 14,
     'threshold': 25,
     'take_profit': 0.1,
     'total_exit': 0.05,
     'initial_size': 1,
-    'hedge_multiplier': 3,
+    'hedge_multiplier': 2,
     'leverage': leverage,
-    'max_hedge_count': 3,
+    'max_hedge_count': 2,
     'debug_mode': True,
     'defensive_hedge_pct': 0.5,
 }
