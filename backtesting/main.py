@@ -1,7 +1,6 @@
 import yfinance as yf
 from backtesting import Backtest
 from dmi import DMIStrategy
-from dmi_defensive import DMIDefensiveStrategy # Import the new strategy
 import pandas as pd
 
 # --- Import Strategy Libraries ---
