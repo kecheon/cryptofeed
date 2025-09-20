@@ -26,6 +26,8 @@ leverage = 10
 # ===================================
 STRATEGY_TO_RUN = DMIStrategy
 ENTRY_SIGNAL_NAME = 'dmi'
+# EXIT_STRATEGY_NAME = 'dismantle'
+# EXIT_STRATEGY_NAME = 'defensive_hedge'
 EXIT_STRATEGY_NAME = 'profit_trigger' # or 'dismantle' or 'defensive_hedge'
 # ===================================
 
