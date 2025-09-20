@@ -8,13 +8,6 @@ import pandas as pd
 from entry_signals import ENTRY_SIGNALS
 from exit_strategies import EXIT_STRATEGIES
 
-# ===================================
-# === CONFIGURATION ===
-# ===================================
-STRATEGY_TO_RUN = DMIDefensiveStrategy # or DMIStrategy
-ENTRY_SIGNAL_NAME = 'dmi'
-EXIT_STRATEGY_NAME = 'defensive_hedge' # or 'dismantle'
-# ===================================
 
 # Download data
 data = yf.download("SOL-USD", start="2025-08-16", end="2025-09-15", interval="5m")
@@ -28,6 +21,14 @@ data = data.rename(columns=lambda x: x.capitalize())
 cash = 10000
 commission = 0.0005
 leverage = 10
+
+# ===================================
+# === CONFIGURATION ===
+# ===================================
+STRATEGY_TO_RUN = DMIStrategy # DMIDefensiveStrategy # or DMIStrategy
+ENTRY_SIGNAL_NAME = 'dmi'
+EXIT_STRATEGY_NAME = 'dismantle' #'defensive_hedge' # or 'dismantle'
+# ===================================
 
 # --- Strategy Parameters ---
 # Core parameters shared by all strategies
