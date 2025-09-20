@@ -15,7 +15,9 @@ def dismantling_strategy(strategy):
         short_pnl = sum(t.pl for t in short_trades)
         strategy.dismantle_side = 'short' if short_pnl > long_pnl else 'long'
 
-    if strategy.dismantle_side == 'short' and (strategy.plus_di[-1] > strategy.minus_di[-1] and strategy.adx[-1] > strategy.threshold and strategy.adx[-1] > strategy.adx[-2]):
+    long_signal, short_signal = strategy.entry_signal['run'](strategy)
+
+    if strategy.dismantle_side == 'short' and long_signal:
         short_size = sum(t.size for t in short_trades)
         short_value = sum(t.size * t.entry_price for t in short_trades)
         avg_short_price = short_value / short_size if short_size != 0 else 0
@@ -29,7 +31,7 @@ def dismantling_strategy(strategy):
         strategy.buy(size=size_to_close, tag='dismantle')
         strategy.dismantle_side = 'long'
     
-    elif strategy.dismantle_side == 'long' and (strategy.minus_di[-1] > strategy.plus_di[-1] and strategy.adx[-1] > strategy.threshold and strategy.adx[-1] > strategy.adx[-2]):
+    elif strategy.dismantle_side == 'long' and short_signal:
         long_size = sum(t.size for t in long_trades)
         long_value = sum(t.size * t.entry_price for t in long_trades)
         avg_long_price = long_value / long_size if long_size > 0 else 0
@@ -44,8 +46,35 @@ def dismantling_strategy(strategy):
         strategy.dismantle_side = 'short'
 
 def defensive_hedge_strategy(strategy):
-    """This function is now managed inside the DMIDefensiveStrategy class."""
-    pass # This logic is now directly in dmi_defensive.py
+    """
+    Implements the defensive hedge exit strategy.
+    This strategy is triggered in locked_exit_mode. It partially closes the losing side of trades
+    by placing a single opposing trade.
+    """
+    long_signal, short_signal = strategy.entry_signal['run'](strategy)
+    
+    if long_signal and strategy.last_defensive_action_side != 'short':
+        short_trades = [t for t in strategy.trades if t.is_short]
+        if short_trades:
+            if strategy.debug_mode: 
+                print(f"\n=== DEFENSIVE HEDGE (Exit Strategy): Trend is UP. Partially closing SHORT side. ===\n")
+            total_short_size = abs(sum(t.size for t in short_trades))
+            size_to_close = total_short_size * strategy.defensive_hedge_pct
+            if size_to_close > 0:
+                strategy.buy(size=int(math.ceil(size_to_close)), tag='def_hedge')
+                strategy.last_defensive_action_side = 'short'
+
+    elif short_signal and strategy.last_defensive_action_side != 'long':
+        long_trades = [t for t in strategy.trades if t.is_long]
+        if long_trades:
+            if strategy.debug_mode: 
+                print(f"\n=== DEFENSIVE HEDGE (Exit Strategy): Trend is DOWN. Partially closing LONG side. ===\n")
+            total_long_size = sum(t.size for t in long_trades)
+            size_to_close = total_long_size * strategy.defensive_hedge_pct
+            if size_to_close > 0:
+                strategy.sell(size=int(math.ceil(size_to_close)), tag='def_hedge')
+                strategy.last_defensive_action_side = 'long'
+
 
 # ===================================
 # === EXIT STRATEGY REGISTRY ===
@@ -56,7 +85,7 @@ EXIT_STRATEGIES = {
         'params': {'dismantle_pct': 0.25}
     },
     'defensive_hedge': {
-        'function': defensive_hedge_strategy, # This will be overridden in the child class
+        'function': defensive_hedge_strategy,
         'params': {'defensive_hedge_pct': 0.5}
     }
 }

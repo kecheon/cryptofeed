@@ -6,6 +6,7 @@ from ta.trend import ADXIndicator
 import math
 
 from entry_signals import ENTRY_SIGNALS
+from exit_strategies import EXIT_STRATEGIES
 
 def sma(series, n):
     """Helper for calculating a Simple Moving Average"""
@@ -34,9 +35,12 @@ class DMIStrategy(Strategy):
         self.locked_exit_mode = False
         self.locked_sequence_id = 0
         self.dismantle_side = None
+        self.dismantled_trades_log = []
+        self.last_defensive_action_side = None
 
         # --- Set Strategy Functions ---
         self.entry_signal = ENTRY_SIGNALS[self.entry_signal_name]
+        self.exit_strategy = EXIT_STRATEGIES[self.exit_strategy_name]['function']
         
         # --- Initialize Indicators based on selected signal ---
         self.entry_signal['init'](self)
@@ -53,31 +57,13 @@ class DMIStrategy(Strategy):
             self.hedge_count = 0
             self.locked_exit_mode = False
             self.dismantle_side = None
+            self.last_defensive_action_side = None
 
         long_signal, short_signal = self.entry_signal['run'](self)
 
         if self.locked_exit_mode:
-            # --- LOCKED EXIT MODE (Dismantle) ---
-            long_trades = [t for t in self.trades if t.is_long and t.tag != 'dismantle']
-            short_trades = [t for t in self.trades if t.is_short and t.tag != 'dismantle']
+            self.exit_strategy(self)
 
-            if not long_trades or not short_trades:
-                return
-
-            if self.dismantle_side is None:
-                long_pnl = sum(t.pl for t in long_trades)
-                short_pnl = sum(t.pl for t in short_trades)
-                self.dismantle_side = 'short' if short_pnl > long_pnl else 'long'
-
-            if self.dismantle_side == 'short' and long_signal:
-                size_to_close = max(1, int(math.ceil(abs(sum(t.size for t in short_trades)) * self.dismantle_pct)))
-                self.buy(size=size_to_close, tag='dismantle')
-                self.dismantle_side = 'long'
-            
-            elif self.dismantle_side == 'long' and short_signal:
-                size_to_close = max(1, int(math.ceil(sum(t.size for t in long_trades) * self.dismantle_pct)))
-                self.sell(size=size_to_close, tag='dismantle')
-                self.dismantle_side = 'short'
         else:
             # --- NORMAL MODE (Hedging) ---
             if not self.trades:
