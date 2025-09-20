@@ -17,7 +17,7 @@ if isinstance(data.columns, pd.MultiIndex):
 data = data.rename(columns=lambda x: x.capitalize())
 
 # --- Backtest Configuration ---
-cash = 3000
+cash = 10000
 commission = 0.0005
 leverage = 10
 
@@ -26,7 +26,7 @@ leverage = 10
 # ===================================
 STRATEGY_TO_RUN = DMIStrategy
 ENTRY_SIGNAL_NAME = 'dmi'
-EXIT_STRATEGY_NAME = 'defensive_hedge' # or 'dismantle'
+EXIT_STRATEGY_NAME = 'profit_trigger' # or 'dismantle' or 'defensive_hedge'
 # ===================================
 
 # --- Strategy Parameters ---
@@ -46,8 +46,10 @@ strategy_params = {
     'total_exit': 0.005,
 
     # --- Exit Strategy Params (Overrides) ---
-    'dismantle_pct': 0.5,       # Default: 0.25
-    'defensive_hedge_pct': 0.9, # Default: 0.5
+    'dismantle_pct': 0.5,               # Default: 0.25
+    'defensive_hedge_pct': 0.5,         # Default: 0.5
+    'profit_trigger_threshold': 0.2,   # Default: 0.02 (2%)
+    'profit_realization_pct': 1.0,      # Default: 1.0 (100%)
 }
 
 # Load default parameters from libraries if they are not set in strategy_params

@@ -29,6 +29,10 @@ class DMIStrategy(Strategy):
     dismantle_pct = 0.25
     defensive_hedge_pct = 0.5
 
+    # --- Parameters for Profit Trigger Exit Strategy ---
+    profit_trigger_threshold = 0.02
+    profit_realization_pct = 1.0
+
     def init(self):
         # --- State Variables ---
         self.hedge_count = 0

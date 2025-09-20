@@ -76,6 +76,47 @@ def defensive_hedge_strategy(strategy):
                 strategy.last_defensive_action_side = 'long'
 
 
+def profit_trigger_strategy(strategy):
+    """
+    An exit strategy that waits for one side of the hedge to become profitable,
+    then waits for an opposing signal to realize profits.
+    """
+    long_trades = [t for t in strategy.trades if t.is_long]
+    short_trades = [t for t in strategy.trades if t.is_short]
+
+    if not long_trades or not short_trades:
+        return
+
+    long_pnl = sum(t.pl for t in long_trades)
+    short_pnl = sum(t.pl for t in short_trades)
+
+    long_notional = sum(t.size * t.entry_price for t in long_trades)
+    short_notional = abs(sum(t.size * t.entry_price for t in short_trades))
+
+    long_signal, short_signal = strategy.entry_signal['run'](strategy)
+
+    # Case 1: Long side is profitable, and we haven't just taken profit on the long side
+    if long_notional > 0 and (long_pnl / long_notional) > strategy.profit_trigger_threshold and strategy.last_defensive_action_side != 'long':
+        if short_signal: # Wait for an opposing (short) signal
+            if strategy.debug_mode:
+                print(f"\n=== PROFIT TRIGGER: LONG side profitable. Closing {strategy.profit_realization_pct*100}%. ===\n")
+            for trade in long_trades:
+                trade.locked_sequence_id = strategy.locked_sequence_id
+                trade.close(strategy.profit_realization_pct)
+            strategy.last_defensive_action_side = 'long'
+
+    # Case 2: Short side is profitable, and we haven't just taken profit on the short side
+    elif short_notional > 0 and (short_pnl / short_notional) > strategy.profit_trigger_threshold and strategy.last_defensive_action_side != 'short':
+        if long_signal: # Wait for an opposing (long) signal
+            if strategy.debug_mode:
+                print(f"\n=== PROFIT TRIGGER: SHORT side profitable. Closing {strategy.profit_realization_pct*100}%. ===\n")
+            for trade in short_trades:
+                trade.locked_sequence_id = strategy.locked_sequence_id
+                trade.close(strategy.profit_realization_pct)
+            strategy.last_defensive_action_side = 'short'
+
+
+
 # ===================================
 # === EXIT STRATEGY REGISTRY ===
 # ===================================
@@ -87,5 +128,12 @@ EXIT_STRATEGIES = {
     'defensive_hedge': {
         'function': defensive_hedge_strategy,
         'params': {'defensive_hedge_pct': 0.5}
+    },
+    'profit_trigger': {
+        'function': profit_trigger_strategy,
+        'params': {
+            'profit_trigger_threshold': 0.02, # 2% profit on one side
+            'profit_realization_pct': 1.0    # Close 100% of the profitable position
+        }
     }
 }
