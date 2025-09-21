@@ -20,6 +20,11 @@ def init_dmi_indicators(strategy):
 
 def run_dmi_signal(strategy):
     """Generates entry signals based on the DMI and ADX indicators."""
+    # --- Debug Print: Check the actual threshold value being used ---
+    # Print once a day to avoid flooding the log
+    if strategy.data.index[-1].hour == 0 and strategy.data.index[-1].minute == 0:
+        print(f"Bar {len(strategy.data)}: Checking signals with threshold = {strategy.threshold}")
+
     # --- Volatility Range Filter ---
     highest_high = strategy.highest_high[-1]
     lowest_low = strategy.lowest_low[-1]
@@ -29,14 +34,12 @@ def run_dmi_signal(strategy):
     long_signal_dmi = (
         strategy.plus_di[-1] > strategy.minus_di[-1] and
         (strategy.plus_di[-1] - strategy.minus_di[-1]) > strategy.di_gap_threshold and
-        strategy.adx[-1] > strategy.threshold and 
-        strategy.adx[-1] > strategy.adx[-2]
+        strategy.adx[-1] > strategy.threshold
     )
     short_signal_dmi = (
         strategy.minus_di[-1] > strategy.plus_di[-1] and
         (strategy.minus_di[-1] - strategy.plus_di[-1]) > strategy.di_gap_threshold and
-        strategy.adx[-1] > strategy.threshold and 
-        strategy.adx[-1] > strategy.adx[-2]
+        strategy.adx[-1] > strategy.threshold
     )
 
     # --- Final Signal --- 

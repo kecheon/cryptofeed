@@ -38,7 +38,13 @@ class DMIStrategy(Strategy):
     range_period = 20
     min_range_pct = 0.03
 
+    # --- Dummy params for compatibility ---
+    stop_loss_pct = 0.01
+    take_profit_pct = 0.02
+
     def init(self):
+        print("--- Running DMIStrategy (Hedging) ---")
+        print(f"--- Using Parameters: di_gap_threshold={self.di_gap_threshold}, range_period={self.range_period}, min_range_pct={self.min_range_pct} ---")
         # --- State Variables ---
         self.hedge_count = 0
         self.locked_exit_mode = False
@@ -116,7 +122,7 @@ class DMIStrategy(Strategy):
         if self.trades:
             if len(self.trades) > 1 and sum(t.pl for t in self.trades) / (sum(abs(t.size * t.entry_price) for t in self.trades) / self.leverage) >= self.total_exit:
                 self.position.close()
-            elif len(self.trades) == 1 and self.trades[0].pl / (abs(self.trades[0].size * self.trades[0].entry_price) / self.leverage) >= self.take_profit:
+            elif len(self.trades) == 1 and self.trades[0].pl / (abs(self.trades[0].size * self.trades[0].entry_price) / self.leverage) >= self.take_profit_pct:
                 self.trades[0].close()
 
         if self.debug_mode:
