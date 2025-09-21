@@ -126,23 +126,24 @@ class DMIStrategy(Strategy):
             print("No open positions.")
         else:
             for t in self.trades:
-                print(f"{len(self.data)}: {('LONG' if t.is_long else 'SHORT')} | Role: {t.tag or 'unclassified':<12} | Size: {t.size:.4f} | Entry: {t.entry_price:.2f} | PnL: {t.pl:.2f}")
+                print(f"{t.entry_bar}: {('LONG' if t.is_long else 'SHORT')} | Role: {t.tag or 'unclassified':<12} | Size: {t.size:.4f} | Entry: {t.entry_price:.2f} | PnL: {t.pl:.2f}")
 
         normal_closed = [t for t in self.closed_trades if not hasattr(t, 'locked_sequence_id')]
         if normal_closed:
             print("\n=== CLOSED TRADES (NORMAL) ===")
             for t in normal_closed:
-                print(f"{t.exit_bar}: {('LONG' if t.is_long else 'SHORT')} | Role: {t.tag or 'unclassified':<12} | Size: {t.size:.4f} | Entry: {t.entry_price:.2f} | Exit: {t.exit_price:.2f} | PnL: {t.pl:.2f}")
+                print(f"{t.entry_bar}→{t.exit_bar}: {('LONG' if t.is_long else 'SHORT')} | Role: {t.tag or 'unclassified':<12} | Size: {t.size:.4f} | Entry: {t.entry_price:.2f} | Exit: {t.exit_price:.2f} | PnL: {t.pl:.2f}")
 
         locked_trades = [t for t in self.closed_trades if hasattr(t, 'locked_sequence_id')]
         if locked_trades:
             print("\n=== CLOSED TRADES (FROM LOCKED SEQUENCES) ===")
             df = pd.DataFrame([{'size': t.size, 'entry_price': t.entry_price, 'exit_price': t.exit_price,
-                                'pl': t.pl, 'locked_sequence_id': t.locked_sequence_id, 'role': t.tag, 'exit_bar': t.exit_bar}
+                                'pl': t.pl, 'locked_sequence_id': t.locked_sequence_id, 'role': t.tag, 
+                                'entry_bar': t.entry_bar, 'exit_bar': t.exit_bar}
                                for t in locked_trades])
             for seq_id, group in df.groupby('locked_sequence_id'):
                 print(f"\n--- Sequence ID: {int(seq_id)} ---")
                 print(f"  Total PnL for this sequence: {group['pl'].sum():.2f}")
                 for _, trade in group.iterrows():
                     direction = 'LONG' if trade['size'] > 0 else 'SHORT'
-                    print(f"  {trade['exit_bar']}: {direction} | Role: {trade['role']:<12} | Size: {trade['size']:.4f} | Entry: {trade['entry_price']:.2f} | Exit: {trade['exit_price']:.2f} | PnL: {trade['pl']:.2f}")
+                    print(f"  {trade['entry_bar']}→{trade['exit_bar']}: {direction} | Role: {trade['role']:<12} | Size: {trade['size']:.4f} | Entry: {trade['entry_price']:.2f} | Exit: {trade['exit_price']:.2f} | PnL: {trade['pl']:.2f}")

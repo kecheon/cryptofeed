@@ -9,7 +9,7 @@ from exit_strategies import EXIT_STRATEGIES
 
 
 # Download data
-data = yf.download("SOL-USD", start="2025-08-16", end="2025-09-15", interval="5m")
+data = yf.download("SOL-USD", start="2025-08-16", end="2025-09-21", interval="5m")
 
 if isinstance(data.columns, pd.MultiIndex):
     data.columns = data.columns.get_level_values(0)
@@ -50,7 +50,7 @@ strategy_params = {
     # --- Exit Strategy Params (Overrides) ---
     'dismantle_pct': 0.5,               # Default: 0.25
     'defensive_hedge_pct': 0.5,         # Default: 0.5
-    'profit_trigger_threshold': 0.2,   # Default: 0.02 (2%)
+    'profit_trigger_threshold': 0.1,   # Default: 0.02 (2%)
     'profit_realization_pct': 1.0,      # Default: 1.0 (100%)
 }
 
