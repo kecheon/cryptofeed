@@ -9,7 +9,7 @@ from exit_strategies import EXIT_STRATEGIES
 
 
 # Download data
-data = yf.download("SOL-USD", start="2025-08-16", end="2025-09-21", interval="5m")
+data = yf.download("SOL-USD", start="2025-08-16", end="2025-09-15", interval="5m")
 
 if isinstance(data.columns, pd.MultiIndex):
     data.columns = data.columns.get_level_values(0)
@@ -47,6 +47,11 @@ strategy_params = {
     'take_profit': 0.01,
     'total_exit': 0.005,
 
+    # --- Entry Signal Params (Overrides) ---
+    'di_gap_threshold': 25,             # Default: 5
+    'range_period': 20,                 # Default: 20
+    'min_range_pct': 0.03,              # Default: 0.03 (3%)
+
     # --- Exit Strategy Params (Overrides) ---
     'dismantle_pct': 0.5,               # Default: 0.25
     'defensive_hedge_pct': 0.5,         # Default: 0.5
@@ -77,4 +82,4 @@ bt = Backtest(
 
 stats = bt.run(**strategy_params)
 print(stats)
-# bt.plot()
+bt.plot(filename="backtest_plot.html")

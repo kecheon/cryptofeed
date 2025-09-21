@@ -14,11 +14,35 @@ def init_dmi_indicators(strategy):
     strategy.adx = strategy.I(lambda: adx_indicator.adx(), name="ADX")
     strategy.plus_di = strategy.I(lambda: adx_indicator.adx_pos(), name="Plus DI")
     strategy.minus_di = strategy.I(lambda: adx_indicator.adx_neg(), name="Minus DI")
+    # --- Volatility Range Filter Indicators ---
+    strategy.highest_high = strategy.I(lambda x: pd.Series(x).rolling(strategy.range_period).max(), strategy.data.High, name="HighestHigh")
+    strategy.lowest_low = strategy.I(lambda x: pd.Series(x).rolling(strategy.range_period).min(), strategy.data.Low, name="LowestLow")
 
 def run_dmi_signal(strategy):
     """Generates entry signals based on the DMI and ADX indicators."""
-    long_signal = strategy.plus_di[-1] > strategy.minus_di[-1] and strategy.adx[-1] > strategy.threshold and strategy.adx[-1] > strategy.adx[-2]
-    short_signal = strategy.minus_di[-1] > strategy.plus_di[-1] and strategy.adx[-1] > strategy.threshold and strategy.adx[-1] > strategy.adx[-2]
+    # --- Volatility Range Filter ---
+    highest_high = strategy.highest_high[-1]
+    lowest_low = strategy.lowest_low[-1]
+    is_ranging = ((highest_high - lowest_low) / lowest_low) < strategy.min_range_pct
+
+    # --- Original DMI/ADX Signal ---
+    long_signal_dmi = (
+        strategy.plus_di[-1] > strategy.minus_di[-1] and
+        (strategy.plus_di[-1] - strategy.minus_di[-1]) > strategy.di_gap_threshold and
+        strategy.adx[-1] > strategy.threshold and 
+        strategy.adx[-1] > strategy.adx[-2]
+    )
+    short_signal_dmi = (
+        strategy.minus_di[-1] > strategy.plus_di[-1] and
+        (strategy.minus_di[-1] - strategy.plus_di[-1]) > strategy.di_gap_threshold and
+        strategy.adx[-1] > strategy.threshold and 
+        strategy.adx[-1] > strategy.adx[-2]
+    )
+
+    # --- Final Signal --- 
+    long_signal = long_signal_dmi and not is_ranging
+    short_signal = short_signal_dmi and not is_ranging
+
     return long_signal, short_signal
 
 # ===================================
