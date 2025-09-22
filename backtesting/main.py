@@ -26,8 +26,8 @@ leverage = 10
 # === CONFIGURATION ===
 # ===================================
 # Choose which strategy to run by uncommenting one of the lines below
-STRATEGY_TO_RUN = DMIStrategy
-# STRATEGY_TO_RUN = DMIStopLossStrategy
+# STRATEGY_TO_RUN = DMIStrategy
+STRATEGY_TO_RUN = DMIStopLossStrategy
 # ===================================
 
 # --- Parameter Loading Function (for DMIStrategy) ---
@@ -79,8 +79,8 @@ elif STRATEGY_TO_RUN == DMIStopLossStrategy:
         # --- General & Entry Signal ---
         'debug_mode': True,
         'adx_period': 14,
-        'threshold': 25,
-        'di_gap_threshold': 5,
+        'threshold': 0,
+        'di_gap_threshold': 0,
         'range_period': 20,
         'min_range_pct': 0.03,
 
