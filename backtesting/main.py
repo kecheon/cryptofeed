@@ -54,7 +54,8 @@ if STRATEGY_TO_RUN == DMIStrategy:
         'threshold': 25,
         'di_gap_threshold': 15,
         'range_period': 20,
-        'min_range_pct': 0.03,
+        'atr_period': 14,
+        'range_atr_multiplier': 1.5,
 
         # --- Sizing & Risk (Hedging) ---
         'initial_size': 1,
@@ -82,7 +83,8 @@ elif STRATEGY_TO_RUN == DMIStopLossStrategy:
         'threshold': 25,
         'di_gap_threshold': 5,
         'range_period': 20,
-        'min_range_pct': 0.03,
+        'atr_period': 14,
+        'range_atr_multiplier': 1.5,
 
         # --- Sizing & Risk (Stop-Loss) ---
         'initial_size': 10,

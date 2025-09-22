@@ -1,6 +1,7 @@
 # entry_signals.py
 
 from ta.trend import ADXIndicator
+from ta.volatility import AverageTrueRange
 import pandas as pd
 
 def init_dmi_indicators(strategy):
@@ -14,7 +15,10 @@ def init_dmi_indicators(strategy):
     strategy.adx = strategy.I(lambda: adx_indicator.adx(), name="ADX")
     strategy.plus_di = strategy.I(lambda: adx_indicator.adx_pos(), name="Plus DI")
     strategy.minus_di = strategy.I(lambda: adx_indicator.adx_neg(), name="Minus DI")
-    # --- Volatility Range Filter Indicators ---
+    
+    # --- Volatility Range Filter Indicators (ATR based) ---
+    atr_indicator = AverageTrueRange(high=df['High'], low=df['Low'], close=df['Close'], window=strategy.atr_period)
+    strategy.atr = strategy.I(lambda: atr_indicator.average_true_range(), name="ATR")
     strategy.highest_high = strategy.I(lambda x: pd.Series(x).rolling(strategy.range_period).max(), strategy.data.High, name="HighestHigh")
     strategy.lowest_low = strategy.I(lambda x: pd.Series(x).rolling(strategy.range_period).min(), strategy.data.Low, name="LowestLow")
 
@@ -25,21 +29,22 @@ def run_dmi_signal(strategy):
     if strategy.data.index[-1].hour == 0 and strategy.data.index[-1].minute == 0:
         print(f"Bar {len(strategy.data)}: Checking signals with threshold = {strategy.threshold}")
 
-    # --- Volatility Range Filter ---
-    highest_high = strategy.highest_high[-1]
-    lowest_low = strategy.lowest_low[-1]
-    is_ranging = ((highest_high - lowest_low) / lowest_low) < strategy.min_range_pct
+    # --- ATR-based Volatility Range Filter ---
+    price_range = strategy.highest_high[-1] - strategy.lowest_low[-1]
+    is_ranging = price_range < (strategy.atr[-1] * strategy.range_atr_multiplier)
 
     # --- Original DMI/ADX Signal ---
     long_signal_dmi = (
         strategy.plus_di[-1] > strategy.minus_di[-1] and
         (strategy.plus_di[-1] - strategy.minus_di[-1]) > strategy.di_gap_threshold and
-        strategy.adx[-1] > strategy.threshold
+        strategy.adx[-1] > strategy.threshold and
+        strategy.adx[-1] > strategy.adx[-2] # ADX Rising
     )
     short_signal_dmi = (
         strategy.minus_di[-1] > strategy.plus_di[-1] and
         (strategy.minus_di[-1] - strategy.plus_di[-1]) > strategy.di_gap_threshold and
-        strategy.adx[-1] > strategy.threshold
+        strategy.adx[-1] > strategy.threshold and
+        strategy.adx[-1] > strategy.adx[-2] # ADX Rising
     )
 
     # --- Final Signal --- 

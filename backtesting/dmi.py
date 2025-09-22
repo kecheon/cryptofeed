@@ -36,7 +36,8 @@ class DMIStrategy(Strategy):
     # --- Parameters for Entry Signal ---
     di_gap_threshold = 5
     range_period = 20
-    min_range_pct = 0.03
+    atr_period = 14
+    range_atr_multiplier = 1.5
 
     # --- Dummy params for compatibility ---
     stop_loss_pct = 0.01
@@ -44,7 +45,7 @@ class DMIStrategy(Strategy):
 
     def init(self):
         print("--- Running DMIStrategy (Hedging) ---")
-        print(f"--- Using Parameters: di_gap_threshold={self.di_gap_threshold}, range_period={self.range_period}, min_range_pct={self.min_range_pct} ---")
+        print(f"--- Using Parameters: di_gap_threshold={self.di_gap_threshold}, range_period={self.range_period}, range_atr_multiplier={self.range_atr_multiplier} ---")
         # --- State Variables ---
         self.hedge_count = 0
         self.locked_exit_mode = False

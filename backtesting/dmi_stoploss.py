@@ -8,7 +8,8 @@ class DMIStopLossStrategy(Strategy):
     threshold = 25
     di_gap_threshold = 5
     range_period = 20
-    min_range_pct = 0.03
+    atr_period = 14
+    range_atr_multiplier = 1.5
 
     # --- Risk Management Parameters ---
     initial_size = 1
@@ -20,7 +21,7 @@ class DMIStopLossStrategy(Strategy):
 
     def init(self):
         print("--- Running DMIStopLossStrategy ---")
-        print(f"--- Using Parameters: di_gap_threshold={self.di_gap_threshold}, stop_loss_pct={self.stop_loss_pct} ---")
+        print(f"--- Using Parameters: di_gap_threshold={self.di_gap_threshold}, stop_loss_pct={self.stop_loss_pct}, range_atr_multiplier={self.range_atr_multiplier} ---")
         # --- Set Strategy Functions ---
         # For simplicity, we assume the entry signal is 'dmi'
         self.entry_signal = ENTRY_SIGNALS['dmi']
