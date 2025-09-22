@@ -8,6 +8,10 @@ import math
 from entry_signals import ENTRY_SIGNALS
 from exit_strategies import EXIT_STRATEGIES
 
+class StrategyCriticalError(Exception):
+    """Custom exception for critical strategy failures."""
+    pass   
+
 def sma(series, n):
     """Helper for calculating a Simple Moving Average"""
     return pd.Series(series).rolling(n).mean()
@@ -84,9 +88,19 @@ class DMIStrategy(Strategy):
             # --- NORMAL MODE (Hedging) ---
             if not self.trades:
                 if long_signal:
-                    self.buy(size=int(self.initial_size), tag='initial')
+                    size = int(self.initial_size)
+                    price = self.data.Close[-1]
+                    required_margin = (size * price) / self.leverage
+                    if required_margin > self.equity:
+                        raise StrategyCriticalError(f"CRITICAL ERROR at bar {len(self.data)}: Insufficient margin for INITIAL trade. Required: {required_margin:.2f}, Equity: {self.equity:.2f}")
+                    self.buy(size=size, tag='initial')
                 elif short_signal:
-                    self.sell(size=int(self.initial_size), tag='initial')
+                    size = int(self.initial_size)
+                    price = self.data.Close[-1]
+                    required_margin = (size * price) / self.leverage
+                    if required_margin > self.equity:
+                        raise StrategyCriticalError(f"CRITICAL ERROR at bar {len(self.data)}: Insufficient margin for INITIAL trade. Required: {required_margin:.2f}, Equity: {self.equity:.2f}")
+                    self.sell(size=size, tag='initial')
             elif sum(t.pl for t in self.trades) < 0:
                 long_trades = [t for t in self.trades if t.is_long]
                 short_trades = [t for t in self.trades if t.is_short]
@@ -103,22 +117,38 @@ class DMIStrategy(Strategy):
                         for t in self.trades:
                             t.locked_sequence_id = self.locked_sequence_id
                         
-                        trades_before = len(self.trades)
+                        price = self.data.Close[-1]
                         if long_size_units > abs_short_size_units:
-                            self.sell(size=(long_size_units - abs_short_size_units), tag='neutralizing')
+                            size = long_size_units - abs_short_size_units
+                            required_margin = (size * price) / self.leverage
+                            if required_margin > self.equity:
+                                raise StrategyCriticalError(f"CRITICAL ERROR at bar {len(self.data)}: Insufficient margin for NEUTRALIZING trade. Required: {required_margin:.2f}, Equity: {self.equity:.2f}")
+                            self.sell(size=size, tag='neutralizing')
                         elif abs_short_size_units > long_size_units:
-                            self.buy(size=(abs_short_size_units - long_size_units), tag='neutralizing')
-
-                        if len(self.trades) > trades_before:
-                            self.trades[-1].locked_sequence_id = self.locked_sequence_id
+                            size = abs_short_size_units - long_size_units
+                            required_margin = (size * price) / self.leverage
+                            if required_margin > self.equity:
+                                raise StrategyCriticalError(f"CRITICAL ERROR at bar {len(self.data)}: Insufficient margin for NEUTRALIZING trade. Required: {required_margin:.2f}, Equity: {self.equity:.2f}")
+                            self.buy(size=size, tag='neutralizing')
                         
                         self.locked_exit_mode = True
                         self.dismantle_side = None
+
                     else:
                         if long_signal:
-                            self.buy(size=max(1, int(math.ceil(self.hedge_multiplier * abs_short_size_units))), tag='hedge')
+                            size = max(1, int(math.ceil(self.hedge_multiplier * abs_short_size_units)))
+                            price = self.data.Close[-1]
+                            required_margin = (size * price) / self.leverage
+                            if required_margin > self.equity:
+                                raise StrategyCriticalError(f"CRITICAL ERROR at bar {len(self.data)}: Insufficient margin for HEDGE trade. Required: {required_margin:.2f}, Equity: {self.equity:.2f}")
+                            self.buy(size=size, tag='hedge')
                         elif short_signal:
-                            self.sell(size=max(1, int(math.ceil(self.hedge_multiplier * long_size_units))), tag='hedge')
+                            size = max(1, int(math.ceil(self.hedge_multiplier * long_size_units)))
+                            price = self.data.Close[-1]
+                            required_margin = (size * price) / self.leverage
+                            if required_margin > self.equity:
+                                raise StrategyCriticalError(f"CRITICAL ERROR at bar {len(self.data)}: Insufficient margin for HEDGE trade. Required: {required_margin:.2f}, Equity: {self.equity:.2f}")
+                            self.sell(size=size, tag='hedge')
 
         if self.trades:
             if len(self.trades) > 1 and sum(t.pl for t in self.trades) / (sum(abs(t.size * t.entry_price) for t in self.trades) / self.leverage) >= self.total_exit:
