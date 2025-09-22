@@ -26,8 +26,8 @@ leverage = 10
 # === CONFIGURATION ===
 # ===================================
 # Choose which strategy to run by uncommenting one of the lines below
-# STRATEGY_TO_RUN = DMIStrategy
-STRATEGY_TO_RUN = DMIStopLossStrategy
+STRATEGY_TO_RUN = DMIStrategy
+# STRATEGY_TO_RUN = DMIStopLossStrategy
 # ===================================
 
 # --- Parameter Loading Function (for DMIStrategy) ---
@@ -54,11 +54,10 @@ if STRATEGY_TO_RUN == DMIStrategy:
         'threshold': 25,
         'di_gap_threshold': 15,
         'range_period': 20,
-        'atr_period': 14,
-        'range_atr_multiplier': 1.5,
+        'min_range_pct': 0.03,
 
         # --- Sizing & Risk (Hedging) ---
-        'initial_size': 1,
+        'initial_size': 5,
         'take_profit_pct': 0.02, # Unified name
         'total_exit': 0.005,
         'hedge_multiplier': 2,
@@ -83,8 +82,7 @@ elif STRATEGY_TO_RUN == DMIStopLossStrategy:
         'threshold': 25,
         'di_gap_threshold': 5,
         'range_period': 20,
-        'atr_period': 14,
-        'range_atr_multiplier': 1.5,
+        'min_range_pct': 0.03,
 
         # --- Sizing & Risk (Stop-Loss) ---
         'initial_size': 10,

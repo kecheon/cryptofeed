@@ -8,46 +8,40 @@ class DMIStopLossStrategy(Strategy):
     threshold = 25
     di_gap_threshold = 5
     range_period = 20
-    atr_period = 14
-    range_atr_multiplier = 1.5
+    min_range_pct = 0.03
 
     # --- Risk Management Parameters ---
     initial_size = 1
     stop_loss_pct = 0.01
-    take_profit_pct = 0.03 # Example: 2% take profit
+    take_profit_pct = 0.03
 
     # --- General Parameters ---
     debug_mode = True
 
     def init(self):
         print("--- Running DMIStopLossStrategy ---")
-        print(f"--- Using Parameters: di_gap_threshold={self.di_gap_threshold}, stop_loss_pct={self.stop_loss_pct}, range_atr_multiplier={self.range_atr_multiplier} ---")
+        print(f"--- Using Parameters: di_gap_threshold={self.di_gap_threshold}, stop_loss_pct={self.stop_loss_pct}, min_range_pct={self.min_range_pct} ---")
         # --- Set Strategy Functions ---
-        # For simplicity, we assume the entry signal is 'dmi'
         self.entry_signal = ENTRY_SIGNALS['dmi']
         
         # --- Initialize Indicators ---
         self.entry_signal['init'](self)
-
 
     def next(self):
         if self.debug_mode:
             print("\n" + "="*80)
             print(f"--- BAR: {len(self.data)} ---")
 
-        # Only enter if there are no open trades
         if not self.trades:
             long_signal, short_signal = self.entry_signal['run'](self)
 
             if long_signal:
-                # Calculate Stop Loss and Take Profit prices
                 price = self.data.Close[-1]
                 sl_price = price * (1 - self.stop_loss_pct)
                 tp_price = price * (1 + self.take_profit_pct)
                 self.buy(size=self.initial_size, sl=sl_price, tp=tp_price, tag='initial')
 
             elif short_signal:
-                # Calculate Stop Loss and Take Profit prices
                 price = self.data.Close[-1]
                 sl_price = price * (1 + self.stop_loss_pct)
                 tp_price = price * (1 - self.take_profit_pct)

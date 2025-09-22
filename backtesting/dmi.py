@@ -40,8 +40,7 @@ class DMIStrategy(Strategy):
     # --- Parameters for Entry Signal ---
     di_gap_threshold = 5
     range_period = 20
-    atr_period = 14
-    range_atr_multiplier = 1.5
+    min_range_pct = 0.03
 
     # --- Dummy params for compatibility ---
     stop_loss_pct = 0.01
@@ -49,7 +48,7 @@ class DMIStrategy(Strategy):
 
     def init(self):
         print("--- Running DMIStrategy (Hedging) ---")
-        print(f"--- Using Parameters: di_gap_threshold={self.di_gap_threshold}, range_period={self.range_period}, range_atr_multiplier={self.range_atr_multiplier} ---")
+        print(f"--- Using Parameters: di_gap_threshold={self.di_gap_threshold}, range_period={self.range_period}, min_range_pct={self.min_range_pct} ---")
         # --- State Variables ---
         self.hedge_count = 0
         self.locked_exit_mode = False
@@ -135,16 +134,15 @@ class DMIStrategy(Strategy):
                         self.dismantle_side = None
 
                     else:
+                        price = self.data.Close[-1]
                         if long_signal:
                             size = max(1, int(math.ceil(self.hedge_multiplier * abs_short_size_units)))
-                            price = self.data.Close[-1]
                             required_margin = (size * price) / self.leverage
                             if required_margin > self.equity:
                                 raise StrategyCriticalError(f"CRITICAL ERROR at bar {len(self.data)}: Insufficient margin for HEDGE trade. Required: {required_margin:.2f}, Equity: {self.equity:.2f}")
                             self.buy(size=size, tag='hedge')
                         elif short_signal:
                             size = max(1, int(math.ceil(self.hedge_multiplier * long_size_units)))
-                            price = self.data.Close[-1]
                             required_margin = (size * price) / self.leverage
                             if required_margin > self.equity:
                                 raise StrategyCriticalError(f"CRITICAL ERROR at bar {len(self.data)}: Insufficient margin for HEDGE trade. Required: {required_margin:.2f}, Equity: {self.equity:.2f}")
