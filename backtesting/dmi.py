@@ -16,13 +16,31 @@ def sma(series, n):
     """Helper for calculating a Simple Moving Average"""
     return pd.Series(series).rolling(n).mean()
 
+# --- Helper functions for new tag structure ---
+def get_trade_role(trade):
+    if isinstance(trade.tag, dict):
+        return trade.tag.get('role', 'unclassified')
+    return trade.tag or 'unclassified'
+
+def get_locked_sequence_id(trade):
+    # First, check for the dictionary in the tag (for new trades like neutralizing)
+    if isinstance(trade.tag, dict):
+        seq_id = trade.tag.get('locked_sequence_id')
+        if seq_id is not None:
+            return seq_id
+    # If not, check for the directly set attribute (for older trades)
+    if hasattr(trade, 'locked_sequence_id'):
+        return trade.locked_sequence_id
+    return None
+
 class DMIStrategy(Strategy):
     # --- Strategy Parameters ---
     entry_signal_name = 'dmi'
-    exit_strategy_name = 'dismantle' # Add the missing parameter
+    exit_strategy_name = 'dismantle'
     adx_period = 14
     threshold = 25
 
+    # --- Risk & Sizing ---
     take_profit = 0.01
     total_exit = 0.005
     initial_size = 1
@@ -30,14 +48,14 @@ class DMIStrategy(Strategy):
     leverage = 1.0
     debug_mode = True
     max_hedge_count = 5
+
+    # --- Exit Strategy Params ---
     dismantle_pct = 0.25
     defensive_hedge_pct = 0.5
-
-    # --- Parameters for Exit Strategies ---
     profit_trigger_threshold = 0.02
     profit_realization_pct = 1.0
 
-    # --- Parameters for Entry Signal ---
+    # --- Entry Signal Params ---
     di_gap_threshold = 5
     range_period = 20
     min_range_pct = 0.03
@@ -61,7 +79,7 @@ class DMIStrategy(Strategy):
         self.entry_signal = ENTRY_SIGNALS[self.entry_signal_name]
         self.exit_strategy = EXIT_STRATEGIES[self.exit_strategy_name]['function']
         
-        # --- Initialize Indicators based on selected signal ---
+        # --- Initialize Indicators ---
         self.entry_signal['init'](self)
 
     def next(self):
@@ -71,6 +89,9 @@ class DMIStrategy(Strategy):
                 dismantle_target = f"{self.dismantle_side.capitalize()} Side"
             print("\n" + "="*80)
             print(f"--- BAR: {len(self.data)} | HEDGES: {self.hedge_count} | LOCKED: {self.locked_exit_mode} | TARGETING: {dismantle_target} ---")
+
+        margin_used = sum(abs(t.size * t.entry_price) / self.leverage for t in self.trades)
+        available_margin = self.equity - margin_used
 
         if not self.trades and (self.hedge_count > 0 or self.locked_exit_mode):
             self.hedge_count = 0
@@ -84,22 +105,21 @@ class DMIStrategy(Strategy):
             self.exit_strategy(self)
 
         else:
-            # --- NORMAL MODE (Hedging) ---
             if not self.trades:
                 if long_signal:
                     size = int(self.initial_size)
                     price = self.data.Close[-1]
                     required_margin = (size * price) / self.leverage
-                    if required_margin > self.equity:
-                        raise StrategyCriticalError(f"CRITICAL ERROR at bar {len(self.data)}: Insufficient margin for INITIAL trade. Required: {required_margin:.2f}, Equity: {self.equity:.2f}")
-                    self.buy(size=size, tag='initial')
+                    if required_margin > available_margin:
+                        raise StrategyCriticalError(f"CRITICAL ERROR at bar {len(self.data)}: Insufficient margin for INITIAL trade. Required: {required_margin:.2f}, Available: {available_margin:.2f}")
+                    self.buy(size=size, tag={'role': 'initial'})
                 elif short_signal:
                     size = int(self.initial_size)
                     price = self.data.Close[-1]
                     required_margin = (size * price) / self.leverage
-                    if required_margin > self.equity:
-                        raise StrategyCriticalError(f"CRITICAL ERROR at bar {len(self.data)}: Insufficient margin for INITIAL trade. Required: {required_margin:.2f}, Equity: {self.equity:.2f}")
-                    self.sell(size=size, tag='initial')
+                    if required_margin > available_margin:
+                        raise StrategyCriticalError(f"CRITICAL ERROR at bar {len(self.data)}: Insufficient margin for INITIAL trade. Required: {required_margin:.2f}, Available: {available_margin:.2f}")
+                    self.sell(size=size, tag={'role': 'initial'})
             elif sum(t.pl for t in self.trades) < 0:
                 long_trades = [t for t in self.trades if t.is_long]
                 short_trades = [t for t in self.trades if t.is_short]
@@ -114,21 +134,21 @@ class DMIStrategy(Strategy):
                     if self.hedge_count == self.max_hedge_count:
                         self.locked_sequence_id += 1
                         for t in self.trades:
-                            t.locked_sequence_id = self.locked_sequence_id
+                            t.locked_sequence_id = self.locked_sequence_id # Add attr directly
                         
                         price = self.data.Close[-1]
                         if long_size_units > abs_short_size_units:
                             size = long_size_units - abs_short_size_units
                             required_margin = (size * price) / self.leverage
-                            if required_margin > self.equity:
-                                raise StrategyCriticalError(f"CRITICAL ERROR at bar {len(self.data)}: Insufficient margin for NEUTRALIZING trade. Required: {required_margin:.2f}, Equity: {self.equity:.2f}")
-                            self.sell(size=size, tag='neutralizing')
+                            if required_margin > available_margin:
+                                raise StrategyCriticalError(f"CRITICAL ERROR at bar {len(self.data)}: Insufficient margin for NEUTRALIZING trade. Required: {required_margin:.2f}, Available: {available_margin:.2f}")
+                            self.sell(size=size, tag={'role': 'neutralizing', 'locked_sequence_id': self.locked_sequence_id})
                         elif abs_short_size_units > long_size_units:
                             size = abs_short_size_units - long_size_units
                             required_margin = (size * price) / self.leverage
-                            if required_margin > self.equity:
-                                raise StrategyCriticalError(f"CRITICAL ERROR at bar {len(self.data)}: Insufficient margin for NEUTRALIZING trade. Required: {required_margin:.2f}, Equity: {self.equity:.2f}")
-                            self.buy(size=size, tag='neutralizing')
+                            if required_margin > available_margin:
+                                raise StrategyCriticalError(f"CRITICAL ERROR at bar {len(self.data)}: Insufficient margin for NEUTRALIZING trade. Required: {required_margin:.2f}, Available: {available_margin:.2f}")
+                            self.buy(size=size, tag={'role': 'neutralizing', 'locked_sequence_id': self.locked_sequence_id})
                         
                         self.locked_exit_mode = True
                         self.dismantle_side = None
@@ -138,15 +158,15 @@ class DMIStrategy(Strategy):
                         if long_signal:
                             size = max(1, int(math.ceil(self.hedge_multiplier * abs_short_size_units)))
                             required_margin = (size * price) / self.leverage
-                            if required_margin > self.equity:
-                                raise StrategyCriticalError(f"CRITICAL ERROR at bar {len(self.data)}: Insufficient margin for HEDGE trade. Required: {required_margin:.2f}, Equity: {self.equity:.2f}")
-                            self.buy(size=size, tag='hedge')
+                            if required_margin > available_margin:
+                                raise StrategyCriticalError(f"CRITICAL ERROR at bar {len(self.data)}: Insufficient margin for HEDGE trade. Required: {required_margin:.2f}, Available: {available_margin:.2f}")
+                            self.buy(size=size, tag={'role': 'hedge'})
                         elif short_signal:
                             size = max(1, int(math.ceil(self.hedge_multiplier * long_size_units)))
                             required_margin = (size * price) / self.leverage
-                            if required_margin > self.equity:
-                                raise StrategyCriticalError(f"CRITICAL ERROR at bar {len(self.data)}: Insufficient margin for HEDGE trade. Required: {required_margin:.2f}, Equity: {self.equity:.2f}")
-                            self.sell(size=size, tag='hedge')
+                            if required_margin > available_margin:
+                                raise StrategyCriticalError(f"CRITICAL ERROR at bar {len(self.data)}: Insufficient margin for HEDGE trade. Required: {required_margin:.2f}, Available: {available_margin:.2f}")
+                            self.sell(size=size, tag={'role': 'hedge'})
 
         if self.trades:
             if len(self.trades) > 1 and sum(t.pl for t in self.trades) / (sum(abs(t.size * t.entry_price) for t in self.trades) / self.leverage) >= self.total_exit:
@@ -166,19 +186,21 @@ class DMIStrategy(Strategy):
             print("No open positions.")
         else:
             for t in self.trades:
-                print(f"{t.entry_bar}: {('LONG' if t.is_long else 'SHORT')} | Role: {t.tag or 'unclassified':<12} | Size: {t.size:.4f} | Entry: {t.entry_price:.2f} | PnL: {t.pl:.2f}")
+                role = get_trade_role(t)
+                print(f"{t.entry_bar}: {('LONG' if t.is_long else 'SHORT')} | Role: {role:<12} | Size: {t.size:.4f} | Entry: {t.entry_price:.2f} | PnL: {t.pl:.2f}")
 
-        normal_closed = [t for t in self.closed_trades if not hasattr(t, 'locked_sequence_id')]
+        normal_closed = [t for t in self.closed_trades if get_locked_sequence_id(t) is None]
         if normal_closed:
             print("\n=== CLOSED TRADES (NORMAL) ===")
             for t in normal_closed:
-                print(f"{t.entry_bar}→{t.exit_bar}: {('LONG' if t.is_long else 'SHORT')} | Role: {t.tag or 'unclassified':<12} | Size: {t.size:.4f} | Entry: {t.entry_price:.2f} | Exit: {t.exit_price:.2f} | PnL: {t.pl:.2f}")
+                role = get_trade_role(t)
+                print(f"{t.entry_bar}→{t.exit_bar}: {('LONG' if t.is_long else 'SHORT')} | Role: {role:<12} | Size: {t.size:.4f} | Entry: {t.entry_price:.2f} | Exit: {t.exit_price:.2f} | PnL: {t.pl:.2f}")
 
-        locked_trades = [t for t in self.closed_trades if hasattr(t, 'locked_sequence_id')]
+        locked_trades = [t for t in self.closed_trades if get_locked_sequence_id(t) is not None]
         if locked_trades:
             print("\n=== CLOSED TRADES (FROM LOCKED SEQUENCES) ===")
             df = pd.DataFrame([{'size': t.size, 'entry_price': t.entry_price, 'exit_price': t.exit_price,
-                                'pl': t.pl, 'locked_sequence_id': t.locked_sequence_id, 'role': t.tag, 
+                                'pl': t.pl, 'locked_sequence_id': get_locked_sequence_id(t), 'role': get_trade_role(t), 
                                 'entry_bar': t.entry_bar, 'exit_bar': t.exit_bar}
                                for t in locked_trades])
             for seq_id, group in df.groupby('locked_sequence_id'):

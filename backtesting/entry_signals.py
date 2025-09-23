@@ -56,13 +56,6 @@ def run_dmi_signal(strategy):
 ENTRY_SIGNALS = {
     'dmi': {
         'init': init_dmi_indicators,
-        'run': run_dmi_signal,
-        'params': {
-            'adx_period': 14,
-            'threshold': 25,
-            'di_gap_threshold': 5,
-            'range_period': 20,
-            'min_range_pct': 0.03
-        }
+        'run': run_dmi_signal
     },
 }
