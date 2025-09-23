@@ -14,21 +14,16 @@ def init_dmi_indicators(strategy):
     strategy.adx = strategy.I(lambda: adx_indicator.adx(), name="ADX")
     strategy.plus_di = strategy.I(lambda: adx_indicator.adx_pos(), name="Plus DI")
     strategy.minus_di = strategy.I(lambda: adx_indicator.adx_neg(), name="Minus DI")
-    # --- Volatility Range Filter Indicators ---
-    strategy.highest_high = strategy.I(lambda x: pd.Series(x).rolling(strategy.range_period).max(), strategy.data.High, name="HighestHigh")
-    strategy.lowest_low = strategy.I(lambda x: pd.Series(x).rolling(strategy.range_period).min(), strategy.data.Low, name="LowestLow")
 
 def run_dmi_signal(strategy):
     """Generates entry signals based on the DMI and ADX indicators."""
     # --- Debug Print: Check the actual threshold value being used ---
-    # Print once a day to avoid flooding the log
-    if strategy.data.index[-1].hour == 0 and strategy.data.index[-1].minute == 0:
+    if hasattr(strategy, 'threshold') and strategy.data.index[-1].hour == 0 and strategy.data.index[-1].minute == 0:
         print(f"Bar {len(strategy.data)}: Checking signals with threshold = {strategy.threshold}")
 
-    # --- Volatility Range Filter ---
-    highest_high = strategy.highest_high[-1]
-    lowest_low = strategy.lowest_low[-1]
-    is_ranging = ((highest_high - lowest_low) / lowest_low) < strategy.min_range_pct
+    # --- Volatility Filter ---
+    # The volatility check is now delegated to the function provided by the strategy
+    is_ranging = strategy.volatility_filter['run'](strategy)
 
     # --- Original DMI/ADX Signal ---
     long_signal_dmi = (
@@ -56,6 +51,11 @@ def run_dmi_signal(strategy):
 ENTRY_SIGNALS = {
     'dmi': {
         'init': init_dmi_indicators,
-        'run': run_dmi_signal
+        'run': run_dmi_signal,
+        'params': {
+            'adx_period': 14,
+            'threshold': 25,
+            'di_gap_threshold': 5
+        }
     },
 }

@@ -37,6 +37,7 @@ class DMIStrategy(Strategy):
     # --- Strategy Parameters ---
     entry_signal_name = 'dmi'
     exit_strategy_name = 'dismantle'
+    volatility_filter_name = 'none'
     adx_period = 14
     threshold = 25
 
@@ -57,6 +58,13 @@ class DMIStrategy(Strategy):
 
     # --- Entry Signal Params ---
     di_gap_threshold = 5
+
+    # --- Volatility Filter Params ---
+    range_period = 20
+    min_range_pct = 0.03
+    atr_short_period = 5
+    atr_long_period = 50
+    atr_ratio_threshold = 0.5
     range_period = 20
     min_range_pct = 0.03
 
@@ -66,7 +74,7 @@ class DMIStrategy(Strategy):
 
     def init(self):
         print("--- Running DMIStrategy (Hedging) ---")
-        print(f"--- Using Parameters: di_gap_threshold={self.di_gap_threshold}, range_period={self.range_period}, min_range_pct={self.min_range_pct} ---")
+        print(f"--- Using Parameters: di_gap_threshold={self.di_gap_threshold} ---")
         # --- State Variables ---
         self.hedge_count = 0
         self.locked_exit_mode = False

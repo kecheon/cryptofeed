@@ -7,6 +7,7 @@ import pandas as pd
 # --- Import Strategy Libraries ---
 from entry_signals import ENTRY_SIGNALS
 from exit_strategies import EXIT_STRATEGIES
+from volatility_filters import VOLATILITY_FILTERS
 
 
 # Download data
@@ -25,12 +26,12 @@ leverage = 10
 # ===================================
 # === CONFIGURATION ===
 # ===================================
-# Choose which strategy to run by uncommenting one of the lines below
 STRATEGY_TO_RUN = DMIStrategy
-# STRATEGY_TO_RUN = DMIStopLossStrategy
+ENTRY_SIGNAL_NAME = 'dmi'
+VOLATILITY_FILTER_NAME = 'atr_ratio' # 'pct_range', 'atr_ratio', or 'none'
 # ===================================
 
-# --- Parameter Loading Function (for DMIStrategy) ---
+# --- Parameter Loading Function ---
 def load_default_params(strategy_params, library, key_name):
     if key_name in library:
         for key, value in library[key_name].get('params', {}).items():
@@ -39,55 +40,59 @@ def load_default_params(strategy_params, library, key_name):
 
 # --- Strategy-specific Parameters ---
 if STRATEGY_TO_RUN == DMIStrategy:
-    # --- Parameters for DMIStrategy (Hedging) ---
-    ENTRY_SIGNAL_NAME = 'dmi'
-    EXIT_STRATEGY_NAME = 'profit_trigger' # or 'dismantle' or 'defensive_hedge'
+    EXIT_STRATEGY_NAME = 'profit_trigger'
     hedging_enabled = True
 
     strategy_params = {
-        # --- Core & Entry Signal ---
         'entry_signal_name': ENTRY_SIGNAL_NAME,
         'exit_strategy_name': EXIT_STRATEGY_NAME,
+        'volatility_filter_name': VOLATILITY_FILTER_NAME,
         'leverage': leverage,
         'debug_mode': True,
-        'adx_period': 14,
-        'threshold': 25,
-        'di_gap_threshold': 15,
-        'range_period': 20,
-        'min_range_pct': 0.03,
-
-        # --- Sizing & Risk (Hedging) ---
         'initial_size': 3,
-        'take_profit_pct': 0.02, # Unified name
-        'total_exit': 0.005,
         'hedge_multiplier': 2,
         'max_hedge_count': 3,
-
-        # --- Exit Strategy Overrides ---
-        'dismantle_pct': 0.5,
-        'defensive_hedge_pct': 0.5,
-        'profit_trigger_threshold': 0.02,
-        'profit_realization_pct': 1.0,
+        # --- Entry Signal Overrides ---
+        'di_gap_threshold': 15,
+        # --- Volatility Filter Overrides ---
+        'min_range_pct': 0.03,
+        'atr_ratio_threshold': 0.5,
     }
+    load_default_params(strategy_params, ENTRY_SIGNALS, ENTRY_SIGNAL_NAME)
+    load_default_params(strategy_params, VOLATILITY_FILTERS, VOLATILITY_FILTER_NAME)
     load_default_params(strategy_params, EXIT_STRATEGIES, EXIT_STRATEGY_NAME)
 
 elif STRATEGY_TO_RUN == DMIStopLossStrategy:
-    # --- Parameters for DMIStopLossStrategy ---
     hedging_enabled = False
     strategy_params = {
-        # --- General & Entry Signal ---
+        'entry_signal_name': ENTRY_SIGNAL_NAME,
+        'volatility_filter_name': VOLATILITY_FILTER_NAME,
         'debug_mode': True,
-        'adx_period': 14,
-        'threshold': 0,
-        'di_gap_threshold': 0,
-        'range_period': 20,
-        'min_range_pct': 0.03,
-
-        # --- Sizing & Risk (Stop-Loss) ---
         'initial_size': 10,
         'stop_loss_pct': 0.02,
         'take_profit_pct': 0.03,
+        # --- Entry Signal Overrides ---
+        'threshold': 25,
+        # --- Volatility Filter Overrides ---
+        'min_range_pct': 0.03,
+        'atr_ratio_threshold': 0.5,
     }
+    load_default_params(strategy_params, ENTRY_SIGNALS, ENTRY_SIGNAL_NAME)
+    load_default_params(strategy_params, VOLATILITY_FILTERS, VOLATILITY_FILTER_NAME)
+
+# --- Inject filter functions into strategy class ---
+# This is a bit of a hack, but it decouples the logic nicely.
+vol_filter = VOLATILITY_FILTERS[VOLATILITY_FILTER_NAME]
+STRATEGY_TO_RUN.volatility_filter = vol_filter
+original_init = STRATEGY_TO_RUN.init
+
+def new_init(self):
+    # Call original init first
+    original_init(self)
+    # Then initialize indicators for the selected volatility filter
+    self.volatility_filter['init'](self)
+
+STRATEGY_TO_RUN.init = new_init
 
 # --- Backtest Execution ---
 bt = Backtest(
@@ -102,4 +107,3 @@ bt = Backtest(
 
 stats = bt.run(**strategy_params)
 print(stats)
-# bt.plot(filename="backtest_plot.html")
