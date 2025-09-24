@@ -3,6 +3,9 @@ from entry_signals import ENTRY_SIGNALS
 import pandas as pd
 
 class DMIStopLossStrategy(Strategy):
+    entry_signal_name = 'dmi'
+    adx_period = 14
+    threshold = 25
     # --- Core Parameters ---
     volatility_filter_name = 'none'
 
@@ -12,6 +15,10 @@ class DMIStopLossStrategy(Strategy):
     atr_short_period = 5
     atr_long_period = 50
     atr_ratio_threshold = 0.5
+    stddev_period = 20
+    min_cv_threshold = 0.01
+    # --- Entry Signal Params ---
+    di_gap_threshold = 5
 
     # --- Risk Management Parameters ---
     initial_size = 1

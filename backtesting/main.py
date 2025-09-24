@@ -26,9 +26,11 @@ leverage = 10
 # ===================================
 # === CONFIGURATION ===
 # ===================================
-STRATEGY_TO_RUN = DMIStrategy
+STRATEGY_TO_RUN = DMIStopLossStrategy
+# STRATEGY_TO_RUN = DMIStrategy
 ENTRY_SIGNAL_NAME = 'dmi'
-VOLATILITY_FILTER_NAME = 'atr_ratio' # 'pct_range', 'atr_ratio', or 'none'
+VOLATILITY_FILTER_NAME = 'pct_range' #'stddev_cv' # 'pct_range', 'atr_ratio', or 'none'
+# VOLATILITY_FILTER_NAME = 'stddev_cv' # 'pct_range', 'atr_ratio', or 'none'
 # ===================================
 
 # --- Parameter Loading Function ---
@@ -55,8 +57,11 @@ if STRATEGY_TO_RUN == DMIStrategy:
         # --- Entry Signal Overrides ---
         'di_gap_threshold': 15,
         # --- Volatility Filter Overrides ---
+        'range_period':  20,
         'min_range_pct': 0.03,
         'atr_ratio_threshold': 0.5,
+        'stddev_period': 20,
+        'min_cv_threshold': 0.003,
     }
     load_default_params(strategy_params, ENTRY_SIGNALS, ENTRY_SIGNAL_NAME)
     load_default_params(strategy_params, VOLATILITY_FILTERS, VOLATILITY_FILTER_NAME)
@@ -72,10 +77,14 @@ elif STRATEGY_TO_RUN == DMIStopLossStrategy:
         'stop_loss_pct': 0.02,
         'take_profit_pct': 0.03,
         # --- Entry Signal Overrides ---
-        'threshold': 25,
+        'threshold': 20,
+        'di_gap_threshold': 15,
         # --- Volatility Filter Overrides ---
+        'range_period':  20,
         'min_range_pct': 0.03,
         'atr_ratio_threshold': 0.5,
+        'stddev_period': 20,
+        'min_cv_threshold': 0.01,
     }
     load_default_params(strategy_params, ENTRY_SIGNALS, ENTRY_SIGNAL_NAME)
     load_default_params(strategy_params, VOLATILITY_FILTERS, VOLATILITY_FILTER_NAME)

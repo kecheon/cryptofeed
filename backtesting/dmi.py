@@ -65,7 +65,8 @@ class DMIStrategy(Strategy):
     atr_short_period = 5
     atr_long_period = 50
     atr_ratio_threshold = 0.5
-    range_period = 20
+    stddev_period = 20
+    min_cv_threshold = 0.01
     min_range_pct = 0.03
 
     # --- Dummy params for compatibility ---
