@@ -24,6 +24,7 @@ class DMIStopLossStrategy(Strategy):
     initial_size = 1
     stop_loss_pct = 0.01
     take_profit_pct = 0.03
+    leverage = 1.0
 
     # --- General Parameters ---
     debug_mode = True
