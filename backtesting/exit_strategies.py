@@ -75,7 +75,6 @@ def defensive_hedge_strategy(strategy):
                 strategy.sell(size=int(math.ceil(size_to_close)), tag='def_hedge')
                 strategy.last_defensive_action_side = 'long'
 
-
 def profit_trigger_strategy(strategy):
     """
     An exit strategy that waits for one side of the hedge to become profitable,
@@ -101,7 +100,6 @@ def profit_trigger_strategy(strategy):
             if strategy.debug_mode:
                 print(f"\n=== PROFIT TRIGGER: LONG side profitable. Closing {strategy.profit_realization_pct*100}%. ===\n")
             for trade in long_trades:
-                trade.locked_sequence_id = strategy.locked_sequence_id
                 trade.close(strategy.profit_realization_pct)
             strategy.last_defensive_action_side = 'long'
 
@@ -111,11 +109,8 @@ def profit_trigger_strategy(strategy):
             if strategy.debug_mode:
                 print(f"\n=== PROFIT TRIGGER: SHORT side profitable. Closing {strategy.profit_realization_pct*100}%. ===\n")
             for trade in short_trades:
-                trade.locked_sequence_id = strategy.locked_sequence_id
                 trade.close(strategy.profit_realization_pct)
             strategy.last_defensive_action_side = 'short'
-
-
 
 # ===================================
 # === EXIT STRATEGY REGISTRY ===
@@ -132,8 +127,8 @@ EXIT_STRATEGIES = {
     'profit_trigger': {
         'function': profit_trigger_strategy,
         'params': {
-            'profit_trigger_threshold': 0.02, # 2% profit on one side
-            'profit_realization_pct': 1.0    # Close 100% of the profitable position
+            'profit_trigger_threshold': 0.02,
+            'profit_realization_pct': 1.0
         }
     }
 }

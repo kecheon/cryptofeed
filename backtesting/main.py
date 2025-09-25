@@ -12,8 +12,8 @@ from volatility_filters import VOLATILITY_FILTERS
 # ===================================
 # ===      CONFIGURATION          ===
 # ===================================
-# STRATEGY_TO_RUN = DMIStrategy
-STRATEGY_TO_RUN = DMIStopLossStrategy
+STRATEGY_TO_RUN = DMIStrategy
+# STRATEGY_TO_RUN = DMIStopLossStrategy
 ENTRY_SIGNAL_NAME = 'dmi'
 VOLATILITY_FILTER_NAME = 'pct_range'  # Options: 'pct_range', 'atr_ratio', 'stddev_cv', 'none'
 EXIT_STRATEGY_NAME = 'profit_trigger'   # Options: 'profit_trigger', 'dismantle', 'defensive_hedge'
@@ -58,6 +58,16 @@ strategy_params = {
     'volatility_filter_name': VOLATILITY_FILTER_NAME,
     'leverage': LEVERAGE,
     'debug_mode': True,
+    'adx_period': 14,
+    'threshold': 15,
+    'di_gap_threshold': 15,
+    'range_period': 20,
+    'min_range_pct': 0.03,
+    'stddev_period': 20,
+    'min_cv_threshold': 0.005,
+    'atr_short_period': 5,
+    'atr_long_period': 50,
+    'atr_ratio_threshold': 0.5,
 }
 
 # 2. Strategy-specific Parameters
@@ -66,11 +76,13 @@ if STRATEGY_TO_RUN == DMIStrategy:
     strategy_specific_params = {
         'exit_strategy_name': EXIT_STRATEGY_NAME,
         'initial_size': 3,
+        'take_profit': 0.01,
+        'total_exit' : 0.005,
+        'dismantle_pct': 0.25,
+        'defensive_hedge_pct': 0.5,
         'hedge_multiplier': 2,
         'max_hedge_count': 3,
-        # --- Parameter Overrides ---
-        'di_gap_threshold': 15,
-        'min_range_pct': 0.03,
+        'partial_sl_pct': 0.5, # For cut_and_rehedge strategy
     }
     strategy_params.update(strategy_specific_params)
     # Load defaults for all components
@@ -81,12 +93,9 @@ if STRATEGY_TO_RUN == DMIStrategy:
 elif STRATEGY_TO_RUN == DMIStopLossStrategy:
     hedging_enabled = False
     strategy_specific_params = {
-        'initial_size': 10,
         'stop_loss_pct': 0.02,
         'take_profit_pct': 0.03,
-        # --- Parameter Overrides ---
-        'threshold': 25,
-        'min_range_pct': 0.03,
+        'initial_size': 10,
     }
     strategy_params.update(strategy_specific_params)
     # Load defaults for all components

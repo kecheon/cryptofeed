@@ -23,23 +23,22 @@ def get_trade_role(trade):
     return trade.tag or 'unclassified'
 
 def get_locked_sequence_id(trade):
-    # First, check for the dictionary in the tag (for new trades like neutralizing)
     if isinstance(trade.tag, dict):
         seq_id = trade.tag.get('locked_sequence_id')
         if seq_id is not None:
             return seq_id
-    # If not, check for the directly set attribute (for older trades)
     if hasattr(trade, 'locked_sequence_id'):
         return trade.locked_sequence_id
     return None
 
 class DMIStrategy(Strategy):
-    # --- Strategy Parameters ---
+    # --- Strategy Core Parameters ---
     entry_signal_name = 'dmi'
     exit_strategy_name = 'dismantle'
     volatility_filter_name = 'none'
     adx_period = 14
     threshold = 25
+    partial_sl_pct = 0.3 # For cut-and-rehedge logic
 
     # --- Risk & Sizing ---
     take_profit = 0.01
@@ -75,7 +74,6 @@ class DMIStrategy(Strategy):
 
     def init(self):
         print("--- Running DMIStrategy (Hedging) ---")
-        print(f"--- Using Parameters: di_gap_threshold={self.di_gap_threshold} ---")
         # --- State Variables ---
         self.hedge_count = 0
         self.locked_exit_mode = False
@@ -83,6 +81,7 @@ class DMIStrategy(Strategy):
         self.dismantle_side = None
         self.dismantled_trades_log = []
         self.last_defensive_action_side = None
+        self.rehedge_pending_side = None
 
         # --- Set Strategy Functions ---
         self.entry_signal = ENTRY_SIGNALS[self.entry_signal_name]
@@ -90,6 +89,25 @@ class DMIStrategy(Strategy):
         
         # --- Initialize Indicators ---
         self.entry_signal['init'](self)
+
+    def _cut_and_rehedge(self, long_signal, short_signal):
+        """Step 1: Initiate a partial close if in a single-sided position and an opposing signal occurs."""
+        long_trades = [t for t in self.trades if t.is_long]
+        short_trades = [t for t in self.trades if t.is_short]
+
+        if long_trades and not short_trades and short_signal:
+            if self.debug_mode:
+                print(f"\n=== CUT & RE-HEDGE (Step 1): Opposing signal found. Initiating partial close of LONG side. ===\n")
+            for trade in long_trades:
+                trade.close(self.partial_sl_pct)
+            self.rehedge_pending_side = 'long' # Set flag to re-hedge on the next bar
+
+        elif short_trades and not long_trades and long_signal:
+            if self.debug_mode:
+                print(f"\n=== CUT & RE-HEDGE (Step 1): Opposing signal found. Initiating partial close of SHORT side. ===\n")
+            for trade in short_trades:
+                trade.close(self.partial_sl_pct)
+            self.rehedge_pending_side = 'short' # Set flag to re-hedge on the next bar
 
     def next(self):
         if self.debug_mode:
@@ -111,7 +129,26 @@ class DMIStrategy(Strategy):
         long_signal, short_signal = self.entry_signal['run'](self)
 
         if self.locked_exit_mode:
-            self.exit_strategy(self)
+            # --- Locked Mode Logic ---
+            if self.rehedge_pending_side is not None:
+                # Step 2: Execute the re-hedge order
+                if self.rehedge_pending_side == 'long':
+                    remaining_long_size = sum(t.size for t in self.trades if t.is_long)
+                    if self.debug_mode:
+                        print(f"\n=== CUT & RE-HEDGE (Step 2): Re-hedging remaining LONG size of {remaining_long_size} ===\n")
+                    if remaining_long_size > 0:
+                        self.sell(size=remaining_long_size, tag={'role': 're_hedge', 'locked_sequence_id': self.locked_sequence_id})
+                elif self.rehedge_pending_side == 'short':
+                    remaining_short_size = abs(sum(t.size for t in self.trades if t.is_short))
+                    if self.debug_mode:
+                        print(f"\n=== CUT & RE-HEDGE (Step 2): Re-hedging remaining SHORT size of {remaining_short_size} ===\n")
+                    if remaining_short_size > 0:
+                        self.buy(size=remaining_short_size, tag={'role': 're_hedge', 'locked_sequence_id': self.locked_sequence_id})
+                self.rehedge_pending_side = None # Reset the flag
+            else:
+                # Step 1: Run primary exit strategy and check for partial SL conditions
+                self.exit_strategy(self)
+                self._cut_and_rehedge(long_signal, short_signal)
 
         else:
             if not self.trades:
@@ -143,7 +180,7 @@ class DMIStrategy(Strategy):
                     if self.hedge_count == self.max_hedge_count:
                         self.locked_sequence_id += 1
                         for t in self.trades:
-                            t.locked_sequence_id = self.locked_sequence_id # Add attr directly
+                            t.locked_sequence_id = self.locked_sequence_id
                         
                         price = self.data.Close[-1]
                         if long_size_units > abs_short_size_units:
