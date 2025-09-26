@@ -30,6 +30,7 @@ class DMIStopLossStrategy(Strategy):
 
     # --- General Parameters ---
     debug_mode = True
+    debug_bar_number = 0
 
     def init(self):
         print("--- Running DMIStopLossStrategy ---")

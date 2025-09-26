@@ -1,8 +1,9 @@
-import yfinance as yf
+import ccxt
+import pandas as pd
 from backtesting import Backtest
 from dmi import DMIStrategy
 from dmi_stoploss import DMIStopLossStrategy
-import pandas as pd
+import datetime
 
 # --- Import Strategy Libraries ---
 from entry_signals import ENTRY_SIGNALS
@@ -15,8 +16,51 @@ from volatility_filters import VOLATILITY_FILTERS
 STRATEGY_TO_RUN = DMIStrategy
 # STRATEGY_TO_RUN = DMIStopLossStrategy
 ENTRY_SIGNAL_NAME = 'dmi'
-VOLATILITY_FILTER_NAME = 'volume_surge' #'volume_surge'  # Options: 'pct_range', 'atr_ratio', 'stddev_cv', 'none'
-EXIT_STRATEGY_NAME = 'profit_trigger'   # Options: 'profit_trigger', 'dismantle', 'defensive_hedge'
+VOLATILITY_FILTER_NAME = 'pct_range'  # Options: 'pct_range', 'atr_ratio', 'stddev_cv', 'none'
+EXIT_STRATEGY_NAME = 'profit_trigger' # Options: 'profit_trigger', 'dismantle', 'defensive_hedge'
+
+# ===================================
+# ===      DATA LOADING           ===
+# ===================================
+SYMBOL = 'LINKUSDT'
+TIMEFRAME = '5m'
+START_DATE = '2025-08-01T00:00:00Z'
+
+# 1. Initialize exchange
+exchange = ccxt.binanceus({
+    'options': {'defaultType': 'future'}
+})
+exchange.load_markets()
+
+# 2. Fetch OHLCV data in a loop
+print(f"Fetching {TIMEFRAME} candles for {SYMBOL} from {START_DATE}...")
+since = exchange.parse8601(START_DATE)
+all_ohlcv = []
+
+while True:
+    try:
+        ohlcv = exchange.fetch_ohlcv(SYMBOL, TIMEFRAME, since=since, limit=1000)
+        if not ohlcv:
+            break
+        first_ts = ohlcv[0][0]
+        last_ts = ohlcv[-1][0]
+        print(f"Fetched {len(ohlcv)} candles from {exchange.iso8601(first_ts)} to {exchange.iso8601(last_ts)}")
+        all_ohlcv.extend(ohlcv)
+        since = last_ts + 1 # Move to the next candle after the last one fetched
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        break
+
+print(f"\nTotal candles fetched: {len(all_ohlcv)}")
+
+# 3. Convert to Pandas DataFrame
+data = pd.DataFrame(all_ohlcv, columns=['Timestamp', 'Open', 'High', 'Low', 'Close', 'Volume'])
+
+# 4. Convert timestamp to datetime and set as index
+data['Timestamp'] = pd.to_datetime(data['Timestamp'], unit='ms')
+data.set_index('Timestamp', inplace=True)
+
+print("Data loaded and formatted successfully.")
 
 # ===================================
 # ===      BACKTEST SETUP         ===
@@ -58,18 +102,21 @@ strategy_params = {
     'volatility_filter_name': VOLATILITY_FILTER_NAME,
     'leverage': LEVERAGE,
     'debug_mode': True,
+    'debug_bar_number': 0, # Set to a specific bar number to debug, or 0 to disable
+    'entry_cooldown_period': 2,
     'adx_period': 14,
     'threshold': 25,
-    'di_gap_threshold': 5,
+    'adx_upper_threshold': 30,
+    'di_gap_threshold': 15,
     'range_period': 20,
-    'min_range_pct': 0.03,
+    'min_range_pct': 0.02,
     'stddev_period': 20,
     'min_cv_threshold': 0.005,
     'atr_short_period': 5,
     'atr_long_period': 50,
     'atr_ratio_threshold': 0.5,
     'volume_sma_period': 20,
-    'volume_surge_multiplier': 5.0,
+    'volume_surge_multiplier': 2.0,
 }
 
 # 2. Strategy-specific Parameters
@@ -77,13 +124,13 @@ if STRATEGY_TO_RUN == DMIStrategy:
     hedging_enabled = True
     strategy_specific_params = {
         'exit_strategy_name': EXIT_STRATEGY_NAME,
-        'initial_size': 3,
+        'initial_size': 1,
         'take_profit': 0.01,
         'total_exit' : 0.005,
         'dismantle_pct': 0.25,
         'defensive_hedge_pct': 0.5,
-        'hedge_multiplier': 3,
-        'max_hedge_count': 2,
+        'hedge_multiplier': 2,
+        'max_hedge_count': 3,
         'partial_sl_pct': 0.5, # For cut_and_rehedge strategy
     }
     strategy_params.update(strategy_specific_params)
@@ -108,16 +155,10 @@ elif STRATEGY_TO_RUN == DMIStopLossStrategy:
 # ===      BACKTEST EXECUTION     ===
 # ===================================
 
-# 1. Download Data
-data = yf.download("SOL-USD", start="2025-08-16", end="2025-09-21", interval="5m")
-if isinstance(data.columns, pd.MultiIndex):
-    data.columns = data.columns.get_level_values(0)
-data = data.rename(columns=lambda x: x.capitalize())
-
-# 2. Prepare Strategy Class with Filters
+# 1. Prepare Strategy Class with Filters
 strategy_to_run = setup_strategy(STRATEGY_TO_RUN, VOLATILITY_FILTER_NAME)
 
-# 3. Run Backtest
+# 2. Run Backtest
 bt = Backtest(
     data,
     strategy_to_run,
@@ -130,3 +171,4 @@ bt = Backtest(
 
 stats = bt.run(**strategy_params)
 print(stats)
+bt.plot(filename="backtest_plot.html")
