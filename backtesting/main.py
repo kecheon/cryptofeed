@@ -15,7 +15,7 @@ from volatility_filters import VOLATILITY_FILTERS
 STRATEGY_TO_RUN = DMIStrategy
 # STRATEGY_TO_RUN = DMIStopLossStrategy
 ENTRY_SIGNAL_NAME = 'dmi'
-VOLATILITY_FILTER_NAME = 'pct_range'  # Options: 'pct_range', 'atr_ratio', 'stddev_cv', 'none'
+VOLATILITY_FILTER_NAME = 'volume_surge' #'volume_surge'  # Options: 'pct_range', 'atr_ratio', 'stddev_cv', 'none'
 EXIT_STRATEGY_NAME = 'profit_trigger'   # Options: 'profit_trigger', 'dismantle', 'defensive_hedge'
 
 # ===================================
@@ -59,8 +59,8 @@ strategy_params = {
     'leverage': LEVERAGE,
     'debug_mode': True,
     'adx_period': 14,
-    'threshold': 15,
-    'di_gap_threshold': 15,
+    'threshold': 25,
+    'di_gap_threshold': 5,
     'range_period': 20,
     'min_range_pct': 0.03,
     'stddev_period': 20,
@@ -68,6 +68,8 @@ strategy_params = {
     'atr_short_period': 5,
     'atr_long_period': 50,
     'atr_ratio_threshold': 0.5,
+    'volume_sma_period': 20,
+    'volume_surge_multiplier': 5.0,
 }
 
 # 2. Strategy-specific Parameters
@@ -80,8 +82,8 @@ if STRATEGY_TO_RUN == DMIStrategy:
         'total_exit' : 0.005,
         'dismantle_pct': 0.25,
         'defensive_hedge_pct': 0.5,
-        'hedge_multiplier': 2,
-        'max_hedge_count': 3,
+        'hedge_multiplier': 3,
+        'max_hedge_count': 2,
         'partial_sl_pct': 0.5, # For cut_and_rehedge strategy
     }
     strategy_params.update(strategy_specific_params)

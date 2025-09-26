@@ -27,6 +27,13 @@ def check_stddev_cv(strategy):
     normalized_volatility = strategy.std_vol[-1] / strategy.sma_vol[-1]
     return normalized_volatility < strategy.min_cv_threshold
 
+def check_volume_surge(strategy):
+    """This is an entry confirmation filter. It returns False if volume is NOT surging."""
+    is_surging = strategy.data.Volume[-1] > (strategy.volume_sma[-1] * strategy.volume_surge_multiplier)
+    # This filter is different: it allows trades only if volume IS surging.
+    # So we return `not is_surging` to fit the `is_ranging` logic.
+    return not is_surging
+
 # ===================================
 # === Filter Initializers ===
 # ===================================
@@ -53,6 +60,11 @@ def init_stddev_cv_indicators(strategy):
     close = pd.Series(strategy.data.Close)
     strategy.sma_vol = strategy.I(lambda: close.rolling(strategy.stddev_period).mean(), name="SMA_Volatility")
     strategy.std_vol = strategy.I(lambda: close.rolling(strategy.stddev_period).std(), name="STD_Volatility")
+
+def init_volume_surge_indicators(strategy):
+    """Initializes indicators needed for the volume_surge filter."""
+    volume = pd.Series(strategy.data.Volume)
+    strategy.volume_sma = strategy.I(lambda: volume.rolling(strategy.volume_sma_period).mean(), name="SMA_Volume")
 
 # ===================================
 # === VOLATILITY FILTER REGISTRY ===
@@ -86,6 +98,14 @@ VOLATILITY_FILTERS = {
         'params': {
             'stddev_period': 20,
             'min_cv_threshold': 0.01 # e.g., stddev is less than 1% of the mean
+        }
+    },
+    'volume_surge': {
+        'init': init_volume_surge_indicators,
+        'run': check_volume_surge,
+        'params': {
+            'volume_sma_period': 20,
+            'volume_surge_multiplier': 2.0
         }
     }
 }
