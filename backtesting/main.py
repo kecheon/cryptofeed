@@ -17,12 +17,12 @@ STRATEGY_TO_RUN = DMIStrategy
 # STRATEGY_TO_RUN = DMIStopLossStrategy
 ENTRY_SIGNAL_NAME = 'dmi'
 VOLATILITY_FILTER_NAME = 'pct_range'  # Options: 'pct_range', 'atr_ratio', 'stddev_cv', 'none'
-EXIT_STRATEGY_NAME = 'profit_trigger' # Options: 'profit_trigger', 'dismantle', 'defensive_hedge'
+EXIT_STRATEGY_NAME = 'defensive_hedge' # Options: 'profit_trigger', 'dismantle', 'defensive_hedge'
 
 # ===================================
 # ===      DATA LOADING           ===
 # ===================================
-SYMBOL = 'LINKUSDT'
+SYMBOL = 'SOLUSDT'
 TIMEFRAME = '5m'
 START_DATE = '2025-08-01T00:00:00Z'
 
@@ -125,7 +125,7 @@ if STRATEGY_TO_RUN == DMIStrategy:
     strategy_specific_params = {
         'exit_strategy_name': EXIT_STRATEGY_NAME,
         'initial_size': 1,
-        'take_profit': 0.01,
+        'take_profit': 0.02,
         'total_exit' : 0.005,
         'dismantle_pct': 0.25,
         'defensive_hedge_pct': 0.5,
@@ -171,4 +171,4 @@ bt = Backtest(
 
 stats = bt.run(**strategy_params)
 print(stats)
-bt.plot(filename="backtest_plot.html")
+# bt.plot(filename="backtest_plot.html")

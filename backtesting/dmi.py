@@ -132,9 +132,8 @@ class DMIStrategy(Strategy):
     def next(self):
         current_bar = len(self.data)
 
-        # --- Update state at the beginning of the bar ---
         if len(self.closed_trades) > self._last_closed_trades_len:
-            self.last_exit_bar = current_bar - 1 # The exit happened on the previous bar
+            self.last_exit_bar = current_bar - 1
         self._last_closed_trades_len = len(self.closed_trades)
 
         if self.debug_mode:
@@ -155,10 +154,12 @@ class DMIStrategy(Strategy):
 
         long_signal, short_signal = self.entry_signal['run'](self)
 
-        # --- DEBUG BLOCK FOR SPECIFIC BAR ---
-        if self.debug_bar_number > 0: 
+        if self.debug_bar_number > 0:
             print("\n" + "#"*20 + f" DEBUGGING BAR {current_bar} " + "#"*20)
             print(f"[BAR {current_bar}] Current Open Trades: {self.trades}")
+            print(f"[Signal {current_bar}] long_signal: {long_signal}")
+            print(f"[Signal {current_bar}] short_signal: {short_signal}")
+
             is_ranging = self.volatility_filter['run'](self)
             cond1 = self.minus_di[-1] > self.plus_di[-1]
             cond2 = (self.minus_di[-1] - self.plus_di[-1]) > self.di_gap_threshold
@@ -167,14 +168,20 @@ class DMIStrategy(Strategy):
             final_signal = cond1 and cond2 and cond3 and cond4 and not is_ranging
 
             print(f"[BAR {current_bar}] SIGNAL VALIDATION:")
-            print(f"  -DI ({self.minus_di[-1]:.2f}) > +DI ({self.plus_di[-1]:.2f}) : {cond1}")
+            if long_signal:
+                cond1 = self.minus_di[-1] < self.plus_di[-1]
+                print(f"  -DI ({self.minus_di[-1]:.2f}) < +DI ({self.plus_di[-1]:.2f}) : {cond1}")
+            elif short_signal:
+                cond1 = self.minus_di[-1] > self.plus_di[-1]
+                print(f"  -DI ({self.minus_di[-1]:.2f}) > +DI ({self.plus_di[-1]:.2f}) : {cond1}")
+  
             print(f"  DI Gap > {self.di_gap_threshold:.2f} : {cond2}")
             print(f"  ADX ({self.adx[-1]:.2f}) > Threshold ({self.threshold:.2f}) : {cond3}")
             print(f"  ADX Rising (current > prev) : {cond4}")
             print(f"  NOT Ranging (Filter Pass) : {not is_ranging}")
             print(f"  ==> FINAL SIGNAL: {final_signal}")
-            if current_bar == self.debug_bar_number + 3:
-                 raise SystemExit(f"--- DEBUG: Intentionally stopped after bar {current_bar} for validation. ---")
+            if current_bar == self.debug_bar_number + 2:
+                raise SystemExit(f"--- DEBUG: Intentionally stopped after bar {current_bar} for validation. ---")
 
         if self.locked_exit_mode:
             if self.rehedge_pending_side is not None:
@@ -262,10 +269,14 @@ class DMIStrategy(Strategy):
                             self.sell(size=size, tag={'role': 'hedge'})
 
         if self.trades:
-            if len(self.trades) > 1 and sum(t.pl for t in self.trades) / (sum(abs(t.size * t.entry_price) for t in self.trades) / self.leverage) >= self.total_exit:
+            if len(self.trades) > 1 and self.hedge_count > 0 and sum(t.pl for t in self.trades) / (sum(abs(t.size * t.entry_price) for t in self.trades) / self.leverage) >= self.total_exit:
                 self.position.close()
-            elif len(self.trades) == 1 and self.trades[0].pl / (abs(self.trades[0].size * self.trades[0].entry_price) / self.leverage) >= self.take_profit_pct:
-                self.trades[0].close()
+            elif len(self.trades) == 1 and self.hedge_count == 0:
+                trade = self.trades[0]
+                if trade.pl > 0 and ((trade.is_long and short_signal) or (trade.is_short and long_signal)):
+                    trade.close()
+                elif trade.pl / (abs(trade.size * trade.entry_price) / self.leverage) >= self.take_profit_pct:
+                    trade.close()
 
         if self.debug_mode:
             self.list_positions()
