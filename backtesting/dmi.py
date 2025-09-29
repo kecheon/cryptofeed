@@ -80,8 +80,8 @@ class DMIStrategy(Strategy):
     debug_bar_number = 0
 
     # --- Dummy params for compatibility ---
-    stop_loss_pct = 0.01
-    take_profit_pct = 0.02
+    # stop_loss_pct = 0.01
+    # take_profit_pct = 0.02
 
     def init(self):
         print("--- Running DMIStrategy (Hedging) ---")
@@ -167,7 +167,7 @@ class DMIStrategy(Strategy):
 
             is_ranging = self.volatility_filter['run'](self)
             cond1 = self.minus_di[-1] > self.plus_di[-1]
-            cond2 = (self.minus_di[-1] - self.plus_di[-1]) > self.di_gap_threshold
+            cond2 = abs(self.minus_di[-1] - self.plus_di[-1]) > self.di_gap_threshold
             cond3 = self.adx[-1] > self.threshold
             cond4 = self.adx[-1] > self.adx[-2]
             final_signal = cond1 and cond2 and cond3 and cond4 and not is_ranging
@@ -234,7 +234,7 @@ class DMIStrategy(Strategy):
                 hedge_needed = (long_signal and abs_short_size_units > long_size_units) or \
                                (short_signal and long_size_units > abs_short_size_units)
 
-                if hedge_needed:
+                if hedge_needed and self.max_hedge_count > 0:
                     self.hedge_count += 1
                     if self.hedge_count == self.max_hedge_count:
                         self.locked_sequence_id += 1
@@ -280,8 +280,15 @@ class DMIStrategy(Strategy):
                 trade = self.trades[0]
                 if trade.pl > 0 and ((trade.is_long and short_signal) or (trade.is_short and long_signal)):
                     trade.close()
-                elif trade.pl / (abs(trade.size * trade.entry_price) / self.leverage) >= self.take_profit_pct:
+                elif trade.pl / (abs(trade.size * trade.entry_price) / self.leverage) >= self.take_profit:
                     trade.close()
+                elif self.max_hedge_count == 0 and trade.pl < 0:
+                    if trade.is_long and short_signal:
+                        trade.close()
+                    elif trade.is_short and long_signal:
+                        trade.close()
+
+
 
         if self.debug_mode:
             self.list_positions()

@@ -28,14 +28,14 @@ def run_dmi_signal(strategy):
     # --- Original DMI/ADX Signal ---
     long_signal_dmi = (
         strategy.plus_di[-1] > strategy.minus_di[-1] and
-        (strategy.plus_di[-1] - strategy.minus_di[-1]) > strategy.di_gap_threshold and
+        abs(strategy.plus_di[-1] - strategy.minus_di[-1]) > strategy.di_gap_threshold and
         strategy.adx[-1] > strategy.threshold and
         strategy.adx[-1] < strategy.adx_upper_threshold and
         strategy.adx[-1] > strategy.adx[-2] # ADX Rising
     )
     short_signal_dmi = (
         strategy.minus_di[-1] > strategy.plus_di[-1] and
-        (strategy.minus_di[-1] - strategy.plus_di[-1]) > strategy.di_gap_threshold and
+        abs(strategy.minus_di[-1] - strategy.plus_di[-1]) > strategy.di_gap_threshold and
         strategy.adx[-1] > strategy.threshold and
         strategy.adx[-1] < strategy.adx_upper_threshold and
         strategy.adx[-1] > strategy.adx[-2] # ADX Rising
