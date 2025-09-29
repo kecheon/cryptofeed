@@ -30,9 +30,15 @@ def check_stddev_cv(strategy):
 def check_volume_surge(strategy):
     """This is an entry confirmation filter. It returns False if volume is NOT surging."""
     is_surging = strategy.data.Volume[-1] > (strategy.volume_sma[-1] * strategy.volume_surge_multiplier)
-    # This filter is different: it allows trades only if volume IS surging.
-    # So we return `not is_surging` to fit the `is_ranging` logic.
     return not is_surging
+
+def check_z_score(strategy):
+    """Checks if the current price is within a normal volatility range using Z-Score."""
+    if strategy.z_std[-1] == 0: # Avoid division by zero
+        return True # If std is zero, it's definitely ranging (below lower threshold)
+    z_score = abs((strategy.data.Close[-1] - strategy.z_sma[-1]) / strategy.z_std[-1])
+    # Return True (is_ranging) if z_score is outside the desired range
+    return not (strategy.z_score_lower_threshold < z_score < strategy.z_score_upper_threshold)
 
 # ===================================
 # === Filter Initializers ===
@@ -66,6 +72,12 @@ def init_volume_surge_indicators(strategy):
     volume = pd.Series(strategy.data.Volume)
     strategy.volume_sma = strategy.I(lambda: volume.rolling(strategy.volume_sma_period).mean(), name="SMA_Volume")
 
+def init_z_score_indicators(strategy):
+    """Initializes indicators needed for the z_score filter."""
+    close = pd.Series(strategy.data.Close)
+    strategy.z_sma = strategy.I(lambda: close.rolling(strategy.z_score_period).mean(), name="Z_SMA")
+    strategy.z_std = strategy.I(lambda: close.rolling(strategy.z_score_period).std(), name="Z_STD")
+
 # ===================================
 # === VOLATILITY FILTER REGISTRY ===
 # ===================================
@@ -87,17 +99,12 @@ VOLATILITY_FILTERS = {
             'atr_ratio_threshold': 0.5
         }
     },
-    'none': {
-        'init': lambda strategy: None, # No indicators to init
-        'run': lambda strategy: False, # Always returns False (not ranging)
-        'params': {}
-    },
     'stddev_cv': {
         'init': init_stddev_cv_indicators,
         'run': check_stddev_cv,
         'params': {
             'stddev_period': 20,
-            'min_cv_threshold': 0.01 # e.g., stddev is less than 1% of the mean
+            'min_cv_threshold': 0.01
         }
     },
     'volume_surge': {
@@ -107,5 +114,19 @@ VOLATILITY_FILTERS = {
             'volume_sma_period': 20,
             'volume_surge_multiplier': 2.0
         }
+    },
+    'z_score': {
+        'init': init_z_score_indicators,
+        'run': check_z_score,
+        'params': {
+            'z_score_period': 20,
+            'z_score_lower_threshold': 1.5,
+            'z_score_upper_threshold': 3.0
+        }
+    },
+    'none': {
+        'init': lambda strategy: None, # No indicators to init
+        'run': lambda strategy: False, # Always returns False (not ranging)
+        'params': {}
     }
 }

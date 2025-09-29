@@ -71,6 +71,11 @@ class DMIStrategy(Strategy):
     volume_sma_period = 20
     volume_surge_multiplier = 2.0
 
+    # --- Z-Score Filter Params ---
+    z_score_period = 20
+    z_score_lower_threshold = 1.5
+    z_score_upper_threshold = 3.0
+
     # --- Debugging Params ---
     debug_bar_number = 0
 

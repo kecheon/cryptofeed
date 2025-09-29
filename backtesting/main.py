@@ -41,7 +41,7 @@ def setup_strategy(strategy_class, vol_filter_name):
 STRATEGY_TO_RUN = DMIStrategy
 # STRATEGY_TO_RUN = DMIStopLossStrategy
 ENTRY_SIGNAL_NAME = 'dmi'
-VOLATILITY_FILTER_NAME = 'pct_range'  # Options: 'pct_range', 'atr_ratio', 'stddev_cv', 'none'
+VOLATILITY_FILTER_NAME = 'z_score'  # Options: 'pct_range', 'atr_ratio', 'stddev_cv', 'none'
 EXIT_STRATEGY_NAME = 'profit_trigger' # Options: 'profit_trigger', 'dismantle', 'defensive_hedge'
 # ===================================
 # ===      BACKTEST SETUP         ===
@@ -63,7 +63,7 @@ strategy_params = {
     'entry_cooldown_period': 2,
     'adx_period': 14,
     'threshold': 25,
-    'adx_upper_threshold': 30,
+    'adx_upper_threshold': 40,
     'di_gap_threshold': 15,
     'range_period': 20,
     'min_range_pct': 0.03,
@@ -74,6 +74,11 @@ strategy_params = {
     'atr_ratio_threshold': 0.5,
     'volume_sma_period': 20,
     'volume_surge_multiplier': 2.0,
+
+    # --- Z-Score Filter Params ---
+    'z_score_period': 20,
+    'z_score_lower_threshold': 1.5,
+    'z_score_upper_threshold': 2.0,
 }
 
 # 2. Strategy-specific Parameters
@@ -81,12 +86,12 @@ if STRATEGY_TO_RUN == DMIStrategy:
     hedging_enabled = True
     strategy_specific_params = {
         'exit_strategy_name': EXIT_STRATEGY_NAME,
-        'initial_size': 3,
+        'initial_size': 2,
         'take_profit': 0.01,
         'total_exit' : 0.005,
         'dismantle_pct': 0.25,
         'defensive_hedge_pct': 0.5,
-        'hedge_multiplier': 2,
+        'hedge_multiplier': 3,
         'max_hedge_count': 3,
         'partial_sl_pct': 0.5, # For cut_and_rehedge strategy
     }
@@ -166,7 +171,8 @@ bt = Backtest(
     commission=COMMISSION,
     margin=1 / LEVERAGE,
     exclusive_orders=not hedging_enabled,
-    hedging=hedging_enabled
+    hedging=hedging_enabled,
+    finalize_trades=True,
 )
 
 stats = bt.run(**strategy_params)
