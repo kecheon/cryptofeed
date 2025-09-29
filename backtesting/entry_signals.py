@@ -18,7 +18,7 @@ def init_dmi_indicators(strategy):
 def run_dmi_signal(strategy):
     """Generates entry signals based on the DMI and ADX indicators."""
     # --- Debug Print: Check the actual threshold value being used ---
-    if hasattr(strategy, 'threshold') and strategy.data.index[-1].hour == 0 and strategy.data.index[-1].minute == 0:
+    if strategy.debug_mode and hasattr(strategy, 'threshold') and strategy.data.index[-1].hour == 0 and strategy.data.index[-1].minute == 0:
         print(f"Bar {len(strategy.data)}: Checking signals with threshold = {strategy.threshold}")
 
     # --- Volatility Filter ---

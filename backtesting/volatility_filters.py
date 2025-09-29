@@ -36,9 +36,10 @@ def check_z_score(strategy):
     """Checks if the current price is within a normal volatility range using Z-Score."""
     if strategy.z_std[-1] == 0: # Avoid division by zero
         return True # If std is zero, it's definitely ranging (below lower threshold)
-    z_score = abs((strategy.data.Close[-1] - strategy.z_sma[-1]) / strategy.z_std[-1])
+    z_score1 = abs((strategy.data.Close[-1] - strategy.z_sma[-1]) / strategy.z_std[-1])
+    z_score2 = abs((strategy.data.Close[-2] - strategy.z_sma[-2]) / strategy.z_std[-2])
     # Return True (is_ranging) if z_score is outside the desired range
-    return not (strategy.z_score_lower_threshold < z_score < strategy.z_score_upper_threshold)
+    return not (strategy.z_score_lower_threshold < z_score1 < strategy.z_score_upper_threshold)
 
 # ===================================
 # === Filter Initializers ===
