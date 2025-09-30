@@ -69,7 +69,10 @@ def profit_trigger_strategy(strategy):
         total_long_size = sum(t.size for t in long_trades)
         size_to_close = total_long_size * strategy.partial_sl_pct
         if size_to_close > 0:
-            strategy.sell(size=int(size_to_close), tag={'role': 'partial_sl', 'locked_sequence_id': strategy.locked_sequence_id})
+            size = int(size_to_close)
+            if size == 0:
+                size = 1
+            strategy.sell(size=size, tag={'role': 'partial_sl', 'locked_sequence_id': strategy.locked_sequence_id})
         strategy.rehedge_pending_side = 'long'
 
     elif short_trades and not long_trades and long_signal:
@@ -78,7 +81,10 @@ def profit_trigger_strategy(strategy):
         total_short_size = abs(sum(t.size for t in short_trades))
         size_to_close = total_short_size * strategy.partial_sl_pct
         if size_to_close > 0:
-            strategy.buy(size=int(size_to_close), tag={'role': 'partial_sl', 'locked_sequence_id': strategy.locked_sequence_id})
+            size = int(size_to_close)
+            if size == 0:
+                size = 1
+            strategy.buy(size=size, tag={'role': 'partial_sl', 'locked_sequence_id': strategy.locked_sequence_id})
         strategy.rehedge_pending_side = 'short'
 
 # ===================================

@@ -87,12 +87,12 @@ if STRATEGY_TO_RUN == DMIStrategy:
     strategy_specific_params = {
         'exit_strategy_name': EXIT_STRATEGY_NAME,
         'initial_size': 2,
-        'take_profit': 0.01,
+        'take_profit': 0.02,
         'total_exit' : 0.005,
         'dismantle_pct': 0.25,
         'defensive_hedge_pct': 0.5,
         'hedge_multiplier': 3,
-        'max_hedge_count': 3,
+        'max_hedge_count': 2,
         'partial_sl_pct': 0.5, # For cut_and_rehedge strategy
     }
     strategy_params.update(strategy_specific_params)
