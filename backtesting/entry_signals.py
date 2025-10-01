@@ -23,27 +23,27 @@ def run_dmi_signal(strategy):
 
     # --- Volatility Filter ---
     # The volatility check is now delegated to the function provided by the strategy
-    is_ranging = strategy.volatility_filter['run'](strategy)
+    not_ranging = strategy.volatility_filter['run'](strategy)
 
     # --- Original DMI/ADX Signal ---
     long_signal_dmi = (
         strategy.plus_di[-1] > strategy.minus_di[-1] and
-        abs(strategy.plus_di[-1] - strategy.minus_di[-1]) > strategy.di_gap_threshold and
+        (strategy.plus_di[-1] - strategy.minus_di[-1]) > strategy.di_gap_threshold and
         strategy.adx[-1] > strategy.threshold and
         strategy.adx[-1] < strategy.adx_upper_threshold and
         strategy.adx[-1] > strategy.adx[-2] # ADX Rising
     )
     short_signal_dmi = (
         strategy.minus_di[-1] > strategy.plus_di[-1] and
-        abs(strategy.minus_di[-1] - strategy.plus_di[-1]) > strategy.di_gap_threshold and
+        (strategy.minus_di[-1] - strategy.plus_di[-1]) > strategy.di_gap_threshold and
         strategy.adx[-1] > strategy.threshold and
         strategy.adx[-1] < strategy.adx_upper_threshold and
         strategy.adx[-1] > strategy.adx[-2] # ADX Rising
     )
 
     # --- Final Signal --- 
-    long_signal = long_signal_dmi and not is_ranging
-    short_signal = short_signal_dmi and not is_ranging
+    long_signal = long_signal_dmi and not_ranging
+    short_signal = short_signal_dmi and not_ranging
 
     return long_signal, short_signal
 

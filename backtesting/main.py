@@ -46,7 +46,7 @@ EXIT_STRATEGY_NAME = 'profit_trigger' # Options: 'profit_trigger', 'dismantle', 
 # ===================================
 # ===      BACKTEST SETUP         ===
 # ===================================
-CASH = 100000
+CASH = 1000
 COMMISSION = 0.0005
 LEVERAGE = 10
 # ===================================
@@ -58,7 +58,7 @@ strategy_params = {
     'entry_signal_name': ENTRY_SIGNAL_NAME,
     'volatility_filter_name': VOLATILITY_FILTER_NAME,
     'leverage': LEVERAGE,
-    'debug_mode': True,
+    'debug_mode': False,
     'debug_bar_number': 0, # Set to a specific bar number to debug, or 0 to disable
     'entry_cooldown_period': 2,
     'adx_period': 14,
@@ -78,7 +78,7 @@ strategy_params = {
     # --- Z-Score Filter Params ---
     'z_score_period': 20,
     'z_score_lower_threshold': 1.5,
-    'z_score_upper_threshold': 2.5,
+    'z_score_upper_threshold': 2.0,
 }
 
 # 2. Strategy-specific Parameters
@@ -86,13 +86,13 @@ if STRATEGY_TO_RUN == DMIStrategy:
     hedging_enabled = True
     strategy_specific_params = {
         'exit_strategy_name': EXIT_STRATEGY_NAME,
-        'initial_size': 1,
+        'initial_size': 2,
         'take_profit': 0.01,
         'total_exit' : 0.005,
         'dismantle_pct': 0.25,
         'defensive_hedge_pct': 0.5,
         'hedge_multiplier': 3,
-        'max_hedge_count': 2,
+        'max_hedge_count': 3,
         'partial_sl_pct': 0.5, # For cut_and_rehedge strategy
     }
     strategy_params.update(strategy_specific_params)
@@ -115,9 +115,9 @@ elif STRATEGY_TO_RUN == DMIStopLossStrategy:
 # ===================================
 # ===      DATA LOADING           ===
 # ===================================
-SYMBOL = 'BTCUSDT'
+SYMBOL = 'SOLUSDT'
 TIMEFRAME = '5m'
-START_DATE = '2025-09-01T00:00:00Z'
+START_DATE = '2025-08-01T00:00:00Z'
 
 # 1. Initialize exchange
 exchange = ccxt.binanceus({
@@ -130,9 +130,7 @@ print(f"Fetching {TIMEFRAME} candles for {SYMBOL} from {START_DATE}...")
 since = exchange.parse8601(START_DATE)
 all_ohlcv = []
 
-i = 0
-while i < 10:
-    i += 1
+while True:
     try:
         ohlcv = exchange.fetch_ohlcv(SYMBOL, TIMEFRAME, since=since, limit=1000)
         if not ohlcv:

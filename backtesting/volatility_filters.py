@@ -38,7 +38,8 @@ def check_z_score(strategy):
         return True # If std is zero, it's definitely ranging (below lower threshold)
     z_score1 = abs((strategy.data.Close[-1] - strategy.z_sma[-1]) / strategy.z_std[-1])
     z_score2 = abs((strategy.data.Close[-2] - strategy.z_sma[-2]) / strategy.z_std[-2])
-    condition1 = z_score1 > z_score2 
+    # condition1 = z_score1 > z_score2 
+    condition1 = True
     condition2 = z_score1 > strategy.z_score_lower_threshold 
     condition3 = z_score1 < strategy.z_score_upper_threshold
     if strategy.debug_mode:
