@@ -165,12 +165,12 @@ class DMIStrategy(Strategy):
             print(f"[Signal {current_bar}] long_signal: {long_signal}")
             print(f"[Signal {current_bar}] short_signal: {short_signal}")
 
-            is_ranging = self.volatility_filter['run'](self)
+            not_ranging = self.volatility_filter['run'](self)
             cond1 = self.minus_di[-1] > self.plus_di[-1]
             cond2 = abs(self.minus_di[-1] - self.plus_di[-1]) > self.di_gap_threshold
             cond3 = self.adx[-1] > self.threshold
             cond4 = self.adx[-1] > self.adx[-2]
-            final_signal = cond1 and cond2 and cond3 and cond4 and not is_ranging
+            final_signal = cond1 and cond2 and cond3 and cond4 and not_ranging
 
             print(f"[BAR {current_bar}] SIGNAL VALIDATION:")
             if long_signal:
@@ -183,7 +183,7 @@ class DMIStrategy(Strategy):
             print(f"  DI Gap > {self.di_gap_threshold:.2f} : {cond2}")
             print(f"  ADX ({self.adx[-1]:.2f}) > Threshold ({self.threshold:.2f}) : {cond3}")
             print(f"  ADX Rising (current > prev) : {cond4}")
-            print(f"  NOT Ranging (Filter Pass) : {not is_ranging}")
+            print(f"  NOT Ranging (Filter Pass) : {not_ranging}")
             print(f"  ==> FINAL SIGNAL: {final_signal}")
             if current_bar == self.debug_bar_number + 2:
                 raise SystemExit(f"--- DEBUG: Intentionally stopped after bar {current_bar} for validation. ---")

@@ -33,13 +33,23 @@ def check_volume_surge(strategy):
     return not is_surging
 
 def check_z_score(strategy):
-    """Checks if the current price is within a normal volatility range using Z-Score."""
+    """Checks if the current price is not within a normal volatility range using Z-Score."""
     if strategy.z_std[-1] == 0: # Avoid division by zero
         return True # If std is zero, it's definitely ranging (below lower threshold)
     z_score1 = abs((strategy.data.Close[-1] - strategy.z_sma[-1]) / strategy.z_std[-1])
     z_score2 = abs((strategy.data.Close[-2] - strategy.z_sma[-2]) / strategy.z_std[-2])
-    # Return True (is_ranging) if z_score is outside the desired range
-    return not (strategy.z_score_lower_threshold < z_score1 < strategy.z_score_upper_threshold)
+    condition1 = z_score1 > z_score2 
+    condition2 = z_score1 > strategy.z_score_lower_threshold 
+    condition3 = z_score1 < strategy.z_score_upper_threshold
+    if strategy.debug_mode:
+        print(f"Z2: {z_score2: .4f}, Z1: {z_score1: .4f}")
+        print(f"std2: {strategy.z_std[-2]}, std1: {strategy.z_std[-1]}")
+        print(f"sma2: {strategy.z_sma[-2]}, sma1: {strategy.z_sma[-1]}")
+        print(f"close2 {strategy.data.Close[-2]}, close1: {strategy.data.Close[-1]}")
+        print(condition1, condition2, condition3)
+        print(condition1 and condition2 and condition3)
+    return condition1 and condition2 and condition3
+
 
 # ===================================
 # === Filter Initializers ===

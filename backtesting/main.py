@@ -46,7 +46,7 @@ EXIT_STRATEGY_NAME = 'profit_trigger' # Options: 'profit_trigger', 'dismantle', 
 # ===================================
 # ===      BACKTEST SETUP         ===
 # ===================================
-CASH = 1000
+CASH = 100000
 COMMISSION = 0.0005
 LEVERAGE = 10
 # ===================================
@@ -78,7 +78,7 @@ strategy_params = {
     # --- Z-Score Filter Params ---
     'z_score_period': 20,
     'z_score_lower_threshold': 1.5,
-    'z_score_upper_threshold': 2.0,
+    'z_score_upper_threshold': 2.5,
 }
 
 # 2. Strategy-specific Parameters
@@ -86,8 +86,8 @@ if STRATEGY_TO_RUN == DMIStrategy:
     hedging_enabled = True
     strategy_specific_params = {
         'exit_strategy_name': EXIT_STRATEGY_NAME,
-        'initial_size': 2,
-        'take_profit': 0.02,
+        'initial_size': 1,
+        'take_profit': 0.01,
         'total_exit' : 0.005,
         'dismantle_pct': 0.25,
         'defensive_hedge_pct': 0.5,
@@ -106,7 +106,7 @@ elif STRATEGY_TO_RUN == DMIStopLossStrategy:
     strategy_specific_params = {
         'stop_loss_pct': 0.02,
         'take_profit_pct': 0.03,
-        'initial_size': 10,
+        'initial_size': 1,
     }
     strategy_params.update(strategy_specific_params)
     # Load defaults for all components
@@ -115,9 +115,9 @@ elif STRATEGY_TO_RUN == DMIStopLossStrategy:
 # ===================================
 # ===      DATA LOADING           ===
 # ===================================
-SYMBOL = 'SOLUSDT'
+SYMBOL = 'BTCUSDT'
 TIMEFRAME = '5m'
-START_DATE = '2025-08-01T00:00:00Z'
+START_DATE = '2025-09-01T00:00:00Z'
 
 # 1. Initialize exchange
 exchange = ccxt.binanceus({
@@ -130,7 +130,9 @@ print(f"Fetching {TIMEFRAME} candles for {SYMBOL} from {START_DATE}...")
 since = exchange.parse8601(START_DATE)
 all_ohlcv = []
 
-while True:
+i = 0
+while i < 10:
+    i += 1
     try:
         ohlcv = exchange.fetch_ohlcv(SYMBOL, TIMEFRAME, since=since, limit=1000)
         if not ohlcv:
