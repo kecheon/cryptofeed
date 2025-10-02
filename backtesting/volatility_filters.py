@@ -5,52 +5,37 @@ import pandas as pd
 
 # ===================================
 # === Individual Filter Logics ===
+# All `check_` functions return True if the condition PASSES (i.e., it is NOT ranging or has enough volume)
 # ===================================
 
 def check_pct_range(strategy):
-    """Checks if the market is ranging based on a fixed percentage of the price range."""
+    """Returns True if the price range is WIDE enough."""
     highest_high = strategy.highest_high[-1]
     lowest_low = strategy.lowest_low[-1]
-    if lowest_low == 0: return False # Avoid division by zero
-    return ((highest_high - lowest_low) / lowest_low) < strategy.min_range_pct
+    if lowest_low == 0: return False # Avoid division by zero, default to pass
+    return ((highest_high - lowest_low) / lowest_low) >= strategy.min_range_pct
 
 def check_atr_ratio(strategy):
-    """Checks if the market is ranging by comparing short-term ATR to long-term ATR."""
-    if strategy.atr_long[-1] == 0: # Avoid division by zero
-        return False
-    return (strategy.atr_short[-1] / strategy.atr_long[-1]) < strategy.atr_ratio_threshold
+    """Returns True if short-term volatility is HIGH enough compared to long-term."""
+    if strategy.atr_long[-1] == 0: return False # Avoid division by zero, default to pass
+    return (strategy.atr_short[-1] / strategy.atr_long[-1]) >= strategy.atr_ratio_threshold
 
 def check_stddev_cv(strategy):
-    """Checks if the market is ranging based on the Coefficient of Variation of price."""
-    if strategy.sma_vol[-1] == 0: # Avoid division by zero
-        return False
+    """Returns True if the Coefficient of Variation is HIGH enough."""
+    if strategy.sma_vol[-1] == 0: return False # Avoid division by zero, default to pass
     normalized_volatility = strategy.std_vol[-1] / strategy.sma_vol[-1]
-    return normalized_volatility < strategy.min_cv_threshold
+    return normalized_volatility >= strategy.min_cv_threshold
 
 def check_volume_surge(strategy):
-    """This is an entry confirmation filter. It returns False if volume is NOT surging."""
-    is_surging = strategy.data.Volume[-1] > (strategy.volume_sma[-1] * strategy.volume_surge_multiplier)
-    return not is_surging
+    """Returns True if volume IS surging."""
+    if strategy.data.Volume[-1] <= 0: return False # Avoid division by zero, default to pass
+    return strategy.data.Volume[-1] > (strategy.volume_sma[-1] * strategy.volume_surge_multiplier)
 
 def check_z_score(strategy):
-    """Checks if the current price is not within a normal volatility range using Z-Score."""
-    if strategy.z_std[-1] == 0: # Avoid division by zero
-        return True # If std is zero, it's definitely ranging (below lower threshold)
-    z_score1 = abs((strategy.data.Close[-1] - strategy.z_sma[-1]) / strategy.z_std[-1])
-    z_score2 = abs((strategy.data.Close[-2] - strategy.z_sma[-2]) / strategy.z_std[-2])
-    # condition1 = z_score1 > z_score2 
-    condition1 = True
-    condition2 = z_score1 > strategy.z_score_lower_threshold 
-    condition3 = z_score1 < strategy.z_score_upper_threshold
-    if strategy.debug_mode:
-        print(f"Z2: {z_score2: .4f}, Z1: {z_score1: .4f}")
-        print(f"std2: {strategy.z_std[-2]}, std1: {strategy.z_std[-1]}")
-        print(f"sma2: {strategy.z_sma[-2]}, sma1: {strategy.z_sma[-1]}")
-        print(f"close2 {strategy.data.Close[-2]}, close1: {strategy.data.Close[-1]}")
-        print(condition1, condition2, condition3)
-        print(condition1 and condition2 and condition3)
-    return condition1 and condition2 and condition3
-
+    """Returns True if the Z-Score is within the desired 'active' range."""
+    if strategy.z_std[-1] == 0: return False # If std is zero, it's definitely NOT active
+    z_score = abs((strategy.data.Close[-1] - strategy.z_sma[-1]) / strategy.z_std[-1])
+    return strategy.z_score_lower_threshold < z_score < strategy.z_score_upper_threshold
 
 # ===================================
 # === Filter Initializers ===
@@ -137,8 +122,8 @@ VOLATILITY_FILTERS = {
         }
     },
     'none': {
-        'init': lambda strategy: None, # No indicators to init
-        'run': lambda strategy: False, # Always returns False (not ranging)
+        'init': lambda strategy: None,
+        'run': lambda strategy: True, # Always passes
         'params': {}
     }
 }

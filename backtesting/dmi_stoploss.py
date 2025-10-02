@@ -5,11 +5,7 @@ import pandas as pd
 class DMIStopLossStrategy(Strategy):
     entry_cooldown_period = 2
     entry_signal_name = 'dmi'
-    adx_period = 14
-    threshold = 25
-    adx_upper_threshold = 30
-    # --- Core Parameters ---
-    volatility_filter_name = 'none'
+    volatility_filter_names = []
 
     # --- Volatility Filter Params ---
     range_period = 20

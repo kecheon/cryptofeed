@@ -35,7 +35,7 @@ class DMIStrategy(Strategy):
     # --- Strategy Core Parameters ---
     entry_signal_name = 'dmi'
     exit_strategy_name = 'dismantle'
-    volatility_filter_name = 'none'
+    volatility_filter_names = []
     adx_period = 14
     adx_upper_threshold = 30
     threshold = 25

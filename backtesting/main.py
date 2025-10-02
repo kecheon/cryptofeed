@@ -21,15 +21,21 @@ def load_default_params(strategy_params, library, key_name):
             if key not in strategy_params:
                 strategy_params[key] = value
 
-def setup_strategy(strategy_class, vol_filter_name):
-    """Injects the chosen volatility filter into the strategy class."""
-    vol_filter = VOLATILITY_FILTERS[vol_filter_name]
-    strategy_class.volatility_filter = vol_filter
+def setup_strategy(strategy_class, vol_filter_names):
+    """Injects the chosen volatility filters into the strategy class."""
+    strategy_class.volatility_filter_funcs = []
+    for name in vol_filter_names:
+        if name in VOLATILITY_FILTERS:
+            strategy_class.volatility_filter_funcs.append(VOLATILITY_FILTERS[name]['run'])
+    
     original_init = strategy_class.init
 
     def new_init(self):
         original_init(self)
-        self.volatility_filter['init'](self)
+        # Initialize indicators for all selected volatility filters
+        for name in self.volatility_filter_names:
+            if name in VOLATILITY_FILTERS:
+                VOLATILITY_FILTERS[name]['init'](self)
 
     strategy_class.init = new_init
     return strategy_class
@@ -39,16 +45,17 @@ def setup_strategy(strategy_class, vol_filter_name):
 # ===      CONFIGURATION          ===
 # ===================================
 STRATEGY_TO_RUN = DMIStrategy
-# STRATEGY_TO_RUN = DMIStopLossStrategy
 ENTRY_SIGNAL_NAME = 'dmi'
-VOLATILITY_FILTER_NAME = 'z_score'  # Options: 'pct_range', 'atr_ratio', 'stddev_cv', 'none'
-EXIT_STRATEGY_NAME = 'profit_trigger' # Options: 'profit_trigger', 'dismantle', 'defensive_hedge'
+VOLATILITY_FILTER_NAMES = ['z_score', 'none' ]  # Options: 'pct_range', 'atr_ratio', 'stddev_cv', 'volume_surge', 'z_score', 'none'
+EXIT_STRATEGY_NAME = 'profit_trigger'
+
 # ===================================
 # ===      BACKTEST SETUP         ===
 # ===================================
 CASH = 1000
 COMMISSION = 0.0005
 LEVERAGE = 10
+
 # ===================================
 # ===       PARAMETER SETUP       ===
 # ===================================
@@ -56,26 +63,25 @@ LEVERAGE = 10
 # 1. Base Parameters (Common to all strategies)
 strategy_params = {
     'entry_signal_name': ENTRY_SIGNAL_NAME,
-    'volatility_filter_name': VOLATILITY_FILTER_NAME,
+    'volatility_filter_names': VOLATILITY_FILTER_NAMES,
     'leverage': LEVERAGE,
     'debug_mode': False,
-    'debug_bar_number': 0, # Set to a specific bar number to debug, or 0 to disable
+    'debug_bar_number': 0,
     'entry_cooldown_period': 2,
+    # Add all possible parameters that can be overridden
     'adx_period': 14,
     'threshold': 25,
     'adx_upper_threshold': 40,
     'di_gap_threshold': 15,
     'range_period': 20,
-    'min_range_pct': 0.03,
+    'min_range_pct': 0.02,
     'stddev_period': 20,
-    'min_cv_threshold': 0.005,
+    'min_cv_threshold': 0.005, # 가격변동이 0.5% 이상
     'atr_short_period': 5,
     'atr_long_period': 50,
     'atr_ratio_threshold': 0.5,
     'volume_sma_period': 20,
     'volume_surge_multiplier': 2.0,
-
-    # --- Z-Score Filter Params ---
     'z_score_period': 20,
     'z_score_lower_threshold': 1.5,
     'z_score_upper_threshold': 2.0,
@@ -86,19 +92,20 @@ if STRATEGY_TO_RUN == DMIStrategy:
     hedging_enabled = True
     strategy_specific_params = {
         'exit_strategy_name': EXIT_STRATEGY_NAME,
-        'initial_size': 2,
         'take_profit': 0.01,
         'total_exit' : 0.005,
         'dismantle_pct': 0.25,
         'defensive_hedge_pct': 0.5,
+        'initial_size': 2,
         'hedge_multiplier': 3,
         'max_hedge_count': 3,
-        'partial_sl_pct': 0.5, # For cut_and_rehedge strategy
+        'partial_sl_pct': 0.5,
     }
     strategy_params.update(strategy_specific_params)
     # Load defaults for all components
     load_default_params(strategy_params, ENTRY_SIGNALS, ENTRY_SIGNAL_NAME)
-    load_default_params(strategy_params, VOLATILITY_FILTERS, VOLATILITY_FILTER_NAME)
+    for name in VOLATILITY_FILTER_NAMES:
+        load_default_params(strategy_params, VOLATILITY_FILTERS, name)
     load_default_params(strategy_params, EXIT_STRATEGIES, EXIT_STRATEGY_NAME)
 
 elif STRATEGY_TO_RUN == DMIStopLossStrategy:
@@ -111,7 +118,9 @@ elif STRATEGY_TO_RUN == DMIStopLossStrategy:
     strategy_params.update(strategy_specific_params)
     # Load defaults for all components
     load_default_params(strategy_params, ENTRY_SIGNALS, ENTRY_SIGNAL_NAME)
-    load_default_params(strategy_params, VOLATILITY_FILTERS, VOLATILITY_FILTER_NAME)
+    for name in VOLATILITY_FILTER_NAMES:
+        load_default_params(strategy_params, VOLATILITY_FILTERS, name)
+
 # ===================================
 # ===      DATA LOADING           ===
 # ===================================
@@ -130,7 +139,9 @@ print(f"Fetching {TIMEFRAME} candles for {SYMBOL} from {START_DATE}...")
 since = exchange.parse8601(START_DATE)
 all_ohlcv = []
 
-while True:
+i = 0
+while i < 100:
+    i += 1
     try:
         ohlcv = exchange.fetch_ohlcv(SYMBOL, TIMEFRAME, since=since, limit=1000)
         if not ohlcv:
@@ -158,10 +169,11 @@ print("Data loaded and formatted successfully.")
 
 # ===================================
 # ===      BACKTEST EXECUTION     ===
+
 # ===================================
 
 # 1. Prepare Strategy Class with Filters
-strategy_to_run = setup_strategy(STRATEGY_TO_RUN, VOLATILITY_FILTER_NAME)
+strategy_to_run = setup_strategy(STRATEGY_TO_RUN, VOLATILITY_FILTER_NAMES)
 
 # 2. Run Backtest
 bt = Backtest(
@@ -177,4 +189,3 @@ bt = Backtest(
 
 stats = bt.run(**strategy_params)
 print(stats)
-# bt.plot(filename="backtest_plot.html")

@@ -17,33 +17,29 @@ def init_dmi_indicators(strategy):
 
 def run_dmi_signal(strategy):
     """Generates entry signals based on the DMI and ADX indicators."""
-    # --- Debug Print: Check the actual threshold value being used ---
-    if strategy.debug_mode and hasattr(strategy, 'threshold') and strategy.data.index[-1].hour == 0 and strategy.data.index[-1].minute == 0:
-        print(f"Bar {len(strategy.data)}: Checking signals with threshold = {strategy.threshold}")
-
-    # --- Volatility Filter ---
-    # The volatility check is now delegated to the function provided by the strategy
-    not_ranging = strategy.volatility_filter['run'](strategy)
+    # --- Volatility Filters ---
+    # Run all selected volatility filters. All must return True to pass.
+    pass_volatility_filters = all(f(strategy) for f in strategy.volatility_filter_funcs)
 
     # --- Original DMI/ADX Signal ---
     long_signal_dmi = (
         strategy.plus_di[-1] > strategy.minus_di[-1] and
-        (strategy.plus_di[-1] - strategy.minus_di[-1]) > strategy.di_gap_threshold and
+        abs(strategy.plus_di[-1] - strategy.minus_di[-1]) > strategy.di_gap_threshold and
         strategy.adx[-1] > strategy.threshold and
         strategy.adx[-1] < strategy.adx_upper_threshold and
         strategy.adx[-1] > strategy.adx[-2] # ADX Rising
     )
     short_signal_dmi = (
         strategy.minus_di[-1] > strategy.plus_di[-1] and
-        (strategy.minus_di[-1] - strategy.plus_di[-1]) > strategy.di_gap_threshold and
+        abs(strategy.minus_di[-1] - strategy.plus_di[-1]) > strategy.di_gap_threshold and
         strategy.adx[-1] > strategy.threshold and
         strategy.adx[-1] < strategy.adx_upper_threshold and
         strategy.adx[-1] > strategy.adx[-2] # ADX Rising
     )
 
-    # --- Final Signal --- 
-    long_signal = long_signal_dmi and not_ranging
-    short_signal = short_signal_dmi and not_ranging
+    # --- Final Signal ---
+    long_signal = long_signal_dmi and pass_volatility_filters
+    short_signal = short_signal_dmi and pass_volatility_filters
 
     return long_signal, short_signal
 
