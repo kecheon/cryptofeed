@@ -76,6 +76,10 @@ class DMIStrategy(Strategy):
     z_score_lower_threshold = 1.5
     z_score_upper_threshold = 3.0
 
+    # --- Volume Z-Score Filter Params ---
+    volume_z_score_period = 20
+    volume_z_score_threshold = 1.5
+
     # --- Debugging Params ---
     debug_bar_number = 0
 

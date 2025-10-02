@@ -5,37 +5,46 @@ import pandas as pd
 
 # ===================================
 # === Individual Filter Logics ===
-# All `check_` functions return True if the condition PASSES (i.e., it is NOT ranging or has enough volume)
+# All `check_` functions return True if the condition PASSES
 # ===================================
 
 def check_pct_range(strategy):
     """Returns True if the price range is WIDE enough."""
     highest_high = strategy.highest_high[-1]
     lowest_low = strategy.lowest_low[-1]
-    if lowest_low == 0: return False # Avoid division by zero, default to pass
+    if lowest_low == 0: return True
     return ((highest_high - lowest_low) / lowest_low) >= strategy.min_range_pct
 
 def check_atr_ratio(strategy):
     """Returns True if short-term volatility is HIGH enough compared to long-term."""
-    if strategy.atr_long[-1] == 0: return False # Avoid division by zero, default to pass
+    if strategy.atr_long[-1] == 0: return True
     return (strategy.atr_short[-1] / strategy.atr_long[-1]) >= strategy.atr_ratio_threshold
 
 def check_stddev_cv(strategy):
     """Returns True if the Coefficient of Variation is HIGH enough."""
-    if strategy.sma_vol[-1] == 0: return False # Avoid division by zero, default to pass
+    if strategy.sma_vol[-1] == 0: return True
     normalized_volatility = strategy.std_vol[-1] / strategy.sma_vol[-1]
     return normalized_volatility >= strategy.min_cv_threshold
 
 def check_volume_surge(strategy):
     """Returns True if volume IS surging."""
-    if strategy.data.Volume[-1] <= 0: return False # Avoid division by zero, default to pass
+    if strategy.volume_sma[-1] == 0: return True
     return strategy.data.Volume[-1] > (strategy.volume_sma[-1] * strategy.volume_surge_multiplier)
 
 def check_z_score(strategy):
-    """Returns True if the Z-Score is within the desired 'active' range."""
-    if strategy.z_std[-1] == 0: return False # If std is zero, it's definitely NOT active
-    z_score = abs((strategy.data.Close[-1] - strategy.z_sma[-1]) / strategy.z_std[-1])
-    return strategy.z_score_lower_threshold < z_score < strategy.z_score_upper_threshold
+    """Checks if the current price is not within a normal volatility range using Z-Score."""
+    if strategy.z_std[-1] == 0: return False
+    z_score1 = abs((strategy.data.Close[-1] - strategy.z_sma[-1]) / strategy.z_std[-1])
+    condition1 = True
+    condition2 = z_score1 > strategy.z_score_lower_threshold 
+    condition3 = z_score1 < strategy.z_score_upper_threshold
+    return condition1 and condition2 and condition3
+
+def check_volume_z_score(strategy):
+    """Returns True if the volume Z-Score is high enough."""
+    if strategy.volume_z_std[-1] == 0: return False
+    z_score = (strategy.data.Volume[-1] - strategy.volume_z_sma[-1]) / strategy.volume_z_std[-1]
+    return z_score > strategy.volume_z_score_threshold
 
 # ===================================
 # === Filter Initializers ===
@@ -74,6 +83,12 @@ def init_z_score_indicators(strategy):
     close = pd.Series(strategy.data.Close)
     strategy.z_sma = strategy.I(lambda: close.rolling(strategy.z_score_period).mean(), name="Z_SMA")
     strategy.z_std = strategy.I(lambda: close.rolling(strategy.z_score_period).std(), name="Z_STD")
+
+def init_volume_z_score_indicators(strategy):
+    """Initializes indicators needed for the volume_z_score filter."""
+    volume = pd.Series(strategy.data.Volume)
+    strategy.volume_z_sma = strategy.I(lambda: volume.rolling(strategy.volume_z_score_period).mean(), name="Volume_Z_SMA")
+    strategy.volume_z_std = strategy.I(lambda: volume.rolling(strategy.volume_z_score_period).std(), name="Volume_Z_STD")
 
 # ===================================
 # === VOLATILITY FILTER REGISTRY ===
@@ -119,6 +134,14 @@ VOLATILITY_FILTERS = {
             'z_score_period': 20,
             'z_score_lower_threshold': 1.5,
             'z_score_upper_threshold': 3.0
+        }
+    },
+    'volume_z_score': {
+        'init': init_volume_z_score_indicators,
+        'run': check_volume_z_score,
+        'params': {
+            'volume_z_score_period': 20,
+            'volume_z_score_threshold': 1.5
         }
     },
     'none': {

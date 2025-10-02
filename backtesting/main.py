@@ -46,13 +46,13 @@ def setup_strategy(strategy_class, vol_filter_names):
 # ===================================
 STRATEGY_TO_RUN = DMIStrategy
 ENTRY_SIGNAL_NAME = 'dmi'
-VOLATILITY_FILTER_NAMES = ['z_score', 'none' ]  # Options: 'pct_range', 'atr_ratio', 'stddev_cv', 'volume_surge', 'z_score', 'none'
+VOLATILITY_FILTER_NAMES = ['z_score', 'volume_z_score' ]  # Options: 'pct_range', 'atr_ratio', 'stddev_cv', 'volume_surge', 'z_score', 'none'
 EXIT_STRATEGY_NAME = 'profit_trigger'
 
 # ===================================
 # ===      BACKTEST SETUP         ===
 # ===================================
-CASH = 1000
+CASH = 100000
 COMMISSION = 0.0005
 LEVERAGE = 10
 
@@ -85,6 +85,10 @@ strategy_params = {
     'z_score_period': 20,
     'z_score_lower_threshold': 1.5,
     'z_score_upper_threshold': 2.0,
+
+    # --- Volume Z-Score Filter Params ---
+    'volume_z_score_period': 20,
+    'volume_z_score_threshold': 1.5,
 }
 
 # 2. Strategy-specific Parameters
@@ -96,9 +100,9 @@ if STRATEGY_TO_RUN == DMIStrategy:
         'total_exit' : 0.005,
         'dismantle_pct': 0.25,
         'defensive_hedge_pct': 0.5,
-        'initial_size': 2,
-        'hedge_multiplier': 3,
-        'max_hedge_count': 3,
+        'initial_size': 1,
+        'hedge_multiplier': 2,
+        'max_hedge_count': 2,
         'partial_sl_pct': 0.5,
     }
     strategy_params.update(strategy_specific_params)
@@ -124,7 +128,7 @@ elif STRATEGY_TO_RUN == DMIStopLossStrategy:
 # ===================================
 # ===      DATA LOADING           ===
 # ===================================
-SYMBOL = 'SOLUSDT'
+SYMBOL = 'BTCUSDT'
 TIMEFRAME = '5m'
 START_DATE = '2025-08-01T00:00:00Z'
 

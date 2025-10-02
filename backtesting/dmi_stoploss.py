@@ -22,6 +22,10 @@ class DMIStopLossStrategy(Strategy):
     z_score_period = 20
     z_score_lower_threshold = 1.5
     z_score_upper_threshold = 3.0
+
+    # --- Volume Z-Score Filter Params ---
+    volume_z_score_period = 20
+    volume_z_score_threshold = 1.5
     # --- Entry Signal Params ---
     di_gap_threshold = 5
 
