@@ -32,19 +32,23 @@ def check_volume_surge(strategy):
     return strategy.data.Volume[-1] > (strategy.volume_sma[-1] * strategy.volume_surge_multiplier)
 
 def check_z_score(strategy):
-    """Checks if the current price is not within a normal volatility range using Z-Score."""
+    """Returns True if the Z-Score is within the desired 'active' range."""
     if strategy.z_std[-1] == 0: return False
-    z_score1 = abs((strategy.data.Close[-1] - strategy.z_sma[-1]) / strategy.z_std[-1])
-    condition1 = True
-    condition2 = z_score1 > strategy.z_score_lower_threshold 
-    condition3 = z_score1 < strategy.z_score_upper_threshold
-    return condition1 and condition2 and condition3
+    z_score = abs((strategy.data.Close[-1] - strategy.z_sma[-1]) / strategy.z_std[-1])
+    return strategy.z_score_lower_threshold < z_score < strategy.z_score_upper_threshold
 
 def check_volume_z_score(strategy):
     """Returns True if the volume Z-Score is high enough."""
     if strategy.volume_z_std[-1] == 0: return False
     z_score = (strategy.data.Volume[-1] - strategy.volume_z_sma[-1]) / strategy.volume_z_std[-1]
     return z_score > strategy.volume_z_score_threshold
+
+def check_vw_z_score(strategy):
+    """Returns True if the Volume-Weighted Z-Score is within the desired range."""
+    if strategy.vw_z_std[-1] == 0: return False
+    current_vw_price = strategy.data.Close[-1] * strategy.data.Volume[-1]
+    z_score = abs((current_vw_price - strategy.vw_z_sma[-1]) / strategy.vw_z_std[-1])
+    return strategy.vw_z_score_lower_threshold < z_score < strategy.vw_z_score_upper_threshold
 
 # ===================================
 # === Filter Initializers ===
@@ -57,11 +61,7 @@ def init_pct_range_indicators(strategy):
 
 def init_atr_ratio_indicators(strategy):
     """Initializes indicators needed for the atr_ratio filter."""
-    df = pd.DataFrame({
-        'High': strategy.data.High,
-        'Low': strategy.data.Low,
-        'Close': strategy.data.Close
-    })
+    df = pd.DataFrame({'High': strategy.data.High, 'Low': strategy.data.Low, 'Close': strategy.data.Close})
     short_atr_indicator = AverageTrueRange(high=df['High'], low=df['Low'], close=df['Close'], window=strategy.atr_short_period)
     long_atr_indicator = AverageTrueRange(high=df['High'], low=df['Low'], close=df['Close'], window=strategy.atr_long_period)
     strategy.atr_short = strategy.I(lambda: short_atr_indicator.average_true_range(), name="ATR_Short")
@@ -89,6 +89,12 @@ def init_volume_z_score_indicators(strategy):
     volume = pd.Series(strategy.data.Volume)
     strategy.volume_z_sma = strategy.I(lambda: volume.rolling(strategy.volume_z_score_period).mean(), name="Volume_Z_SMA")
     strategy.volume_z_std = strategy.I(lambda: volume.rolling(strategy.volume_z_score_period).std(), name="Volume_Z_STD")
+
+def init_vw_z_score_indicators(strategy):
+    """Initializes indicators for the Volume-Weighted Z-Score filter."""
+    vw_price = pd.Series(strategy.data.Close * strategy.data.Volume)
+    strategy.vw_z_sma = strategy.I(lambda: vw_price.rolling(strategy.vw_z_score_period).mean(), name="VW_Z_SMA")
+    strategy.vw_z_std = strategy.I(lambda: vw_price.rolling(strategy.vw_z_score_period).std(), name="VW_Z_STD")
 
 # ===================================
 # === VOLATILITY FILTER REGISTRY ===
@@ -144,9 +150,18 @@ VOLATILITY_FILTERS = {
             'volume_z_score_threshold': 1.5
         }
     },
+    'vw_z_score': {
+        'init': init_vw_z_score_indicators,
+        'run': check_vw_z_score,
+        'params': {
+            'vw_z_score_period': 20,
+            'vw_z_score_lower_threshold': 1.0,
+            'vw_z_score_upper_threshold': 3.0
+        }
+    },
     'none': {
         'init': lambda strategy: None,
-        'run': lambda strategy: True, # Always passes
+        'run': lambda strategy: True,
         'params': {}
     }
 }

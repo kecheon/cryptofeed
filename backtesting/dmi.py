@@ -71,6 +71,11 @@ class DMIStrategy(Strategy):
     volume_sma_period = 20
     volume_surge_multiplier = 2.0
 
+    # --- VW Z-Score Filter Params ---
+    vw_z_score_period = 20
+    vw_z_score_lower_threshold = 1.0
+    vw_z_score_upper_threshold = 3.0
+
     # --- Z-Score Filter Params ---
     z_score_period = 20
     z_score_lower_threshold = 1.5
@@ -169,7 +174,8 @@ class DMIStrategy(Strategy):
             print(f"[Signal {current_bar}] long_signal: {long_signal}")
             print(f"[Signal {current_bar}] short_signal: {short_signal}")
 
-            not_ranging = self.volatility_filter['run'](self)
+            # not_ranging = self.volatility_filter_names['run'](self)
+            not_ranging = True
             cond1 = self.minus_di[-1] > self.plus_di[-1]
             cond2 = abs(self.minus_di[-1] - self.plus_di[-1]) > self.di_gap_threshold
             cond3 = self.adx[-1] > self.threshold

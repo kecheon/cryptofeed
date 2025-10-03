@@ -46,7 +46,7 @@ def setup_strategy(strategy_class, vol_filter_names):
 # ===================================
 STRATEGY_TO_RUN = DMIStrategy
 ENTRY_SIGNAL_NAME = 'dmi'
-VOLATILITY_FILTER_NAMES = ['z_score', 'volume_z_score' ]  # Options: 'pct_range', 'atr_ratio', 'stddev_cv', 'volume_surge', 'z_score', 'none'
+VOLATILITY_FILTER_NAMES = ['z_score', 'none' ]  # Options: 'pct_range', 'atr_ratio', 'stddev_cv', 'volume_surge', 'z_score', 'none'
 EXIT_STRATEGY_NAME = 'profit_trigger'
 
 # ===================================
@@ -89,6 +89,11 @@ strategy_params = {
     # --- Volume Z-Score Filter Params ---
     'volume_z_score_period': 20,
     'volume_z_score_threshold': 1.5,
+
+    # --- VW Z-Score Filter Params ---
+    'vw_z_score_period': 20,
+    'vw_z_score_lower_threshold': 1.5,
+    'vw_z_score_upper_threshold': 2.0,
 }
 
 # 2. Strategy-specific Parameters
