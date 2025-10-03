@@ -52,7 +52,7 @@ EXIT_STRATEGY_NAME = 'profit_trigger'
 # ===================================
 # ===      BACKTEST SETUP         ===
 # ===================================
-CASH = 100000
+CASH = 1000
 COMMISSION = 0.0005
 LEVERAGE = 10
 
@@ -65,7 +65,7 @@ strategy_params = {
     'entry_signal_name': ENTRY_SIGNAL_NAME,
     'volatility_filter_names': VOLATILITY_FILTER_NAMES,
     'leverage': LEVERAGE,
-    'debug_mode': False,
+    'debug_mode': True,
     'debug_bar_number': 0,
     'entry_cooldown_period': 2,
     # Add all possible parameters that can be overridden
@@ -101,9 +101,9 @@ if STRATEGY_TO_RUN == DMIStrategy:
         'dismantle_pct': 0.25,
         'defensive_hedge_pct': 0.5,
         'initial_size': 1,
-        'hedge_multiplier': 2,
-        'max_hedge_count': 2,
-        'partial_sl_pct': 0.5,
+        'hedge_multiplier': 3,
+        'max_hedge_count': 3,
+        'partial_sl_pct': 1.0,
     }
     strategy_params.update(strategy_specific_params)
     # Load defaults for all components
@@ -128,7 +128,7 @@ elif STRATEGY_TO_RUN == DMIStopLossStrategy:
 # ===================================
 # ===      DATA LOADING           ===
 # ===================================
-SYMBOL = 'BTCUSDT'
+SYMBOL = 'SOLUSDT'
 TIMEFRAME = '5m'
 START_DATE = '2025-08-01T00:00:00Z'
 
