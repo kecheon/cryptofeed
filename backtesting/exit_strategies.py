@@ -70,10 +70,15 @@ def profit_trigger_strategy(strategy):
         size_to_close = total_long_size * strategy.partial_sl_pct
         if size_to_close > 0:
             size = int(size_to_close)
-            if size == 0:
-                size = 1
-            strategy.sell(size=size, tag={'role': 'partial_sl', 'locked_sequence_id': strategy.locked_sequence_id})
-        strategy.rehedge_pending_side = 'long'
+            if size >= total_long_size:
+                for trade in long_trades:
+                    trade.close()
+                strategy.rehedge_pending_side = None
+            else:
+                # if size == 0:
+                #     size = 1
+                # strategy.sell(size=size, tag={'role': 'partial_sl', 'locked_sequence_id': strategy.locked_sequence_id})
+                strategy.rehedge_pending_side = 'long'
 
     elif short_trades and not long_trades and long_signal:
         if strategy.debug_mode:
@@ -82,10 +87,16 @@ def profit_trigger_strategy(strategy):
         size_to_close = total_short_size * strategy.partial_sl_pct
         if size_to_close > 0:
             size = int(size_to_close)
-            if size == 0:
-                size = 1
-            strategy.buy(size=size, tag={'role': 'partial_sl', 'locked_sequence_id': strategy.locked_sequence_id})
-        strategy.rehedge_pending_side = 'short'
+            if size >= total_short_size:
+                for trade in short_trades:
+                    trade.close()
+                strategy.rehedge_pending_side = None
+            else:
+                # if size == 0:
+                #     size = 1
+                # strategy.buy(size=size, tag={'role': 'partial_sl', 'locked_sequence_id': strategy.locked_sequence_id})
+                strategy.rehedge_pending_side = 'short'
+
 
 # ===================================
 # === EXIT STRATEGY REGISTRY ===
@@ -102,7 +113,7 @@ EXIT_STRATEGIES = {
     'profit_trigger': {
         'function': profit_trigger_strategy,
         'params': {
-            'profit_trigger_threshold': 0.02,
+            'profit_trigger_threshold': 0.01,
             'profit_realization_pct': 1.0,
             'partial_sl_pct': 0.3
         }

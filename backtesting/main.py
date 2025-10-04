@@ -46,7 +46,7 @@ def setup_strategy(strategy_class, vol_filter_names):
 # ===================================
 STRATEGY_TO_RUN = DMIStrategy
 ENTRY_SIGNAL_NAME = 'dmi'
-VOLATILITY_FILTER_NAMES = ['z_score', 'none' ]  # Options: 'pct_range', 'atr_ratio', 'stddev_cv', 'volume_surge', 'z_score', 'none'
+VOLATILITY_FILTER_NAMES = ['vw_z_score']  # Options: 'pct_range', 'atr_ratio', 'stddev_cv', 'volume_surge', 'z_score', 'none'
 EXIT_STRATEGY_NAME = 'profit_trigger'
 
 # ===================================
@@ -72,7 +72,7 @@ strategy_params = {
     'adx_period': 14,
     'threshold': 25,
     'adx_upper_threshold': 40,
-    'di_gap_threshold': 15,
+    'di_gap_threshold': 10,
     'range_period': 20,
     'min_range_pct': 0.02,
     'stddev_period': 20,
@@ -105,7 +105,7 @@ if STRATEGY_TO_RUN == DMIStrategy:
         'total_exit' : 0.005,
         'dismantle_pct': 0.25,
         'defensive_hedge_pct': 0.5,
-        'initial_size': 1,
+        'initial_size': 2,
         'hedge_multiplier': 3,
         'max_hedge_count': 3,
         'partial_sl_pct': 1.0,
